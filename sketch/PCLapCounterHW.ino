@@ -13,6 +13,7 @@
 
    Revision History
    __________ ____________________ _______________________________________________________
+   2016-10-24 Gabriel Inäbnit      Fix false start GO command with HW false start enabled
    2016-10-22 Gabriel Inäbnit      HW false start enable/disable, penalty, reset
    2016-10-21 Gabriel Inäbnit      false start detection and penalty procedure
    2016-10-18 Gabriel Inäbnit      external buttons handling added
@@ -70,7 +71,7 @@
 
 #define LED_GO 10
 #define LED_STOP 11
-//#define LED_CAUTION 12
+#define LED_CAUTION 12
 
 #define PWR_ALL 30
 #define PWR_1   31
@@ -100,7 +101,6 @@ const char lapTime[][7] =
   "[SF06$"
 };
 
-volatile bool raceStarted;
 unsigned long falseStartPenaltyBegin;
 const unsigned long delayMillis[] =
 { // index
@@ -114,6 +114,57 @@ const unsigned long delayMillis[] =
   7000L  // 7
 };
 byte delayMillisIndex = 0;
+
+/*****************************************************************************************
+   Class Race
+ *****************************************************************************************/
+#define RACE_SETUP 0
+#define RACE_STARTED 1
+#define RACE_FINISHED 3
+#define RACE_PAUSED 4
+#define CLOCK_REMAINING_TIME 'R'
+#define CLOCK_ELAPSED_TIME 'E'
+#define CLOCK_SEGMENT_REMAINING_TIME 'S'
+#define LAPS_REMAINING 'L'
+
+class Race {
+  protected:
+    volatile byte state;
+    char clockType;
+  public:
+    Race() {
+      state = RACE_FINISHED;
+    }
+    bool isStarted() {
+      return state == RACE_STARTED;
+    }
+    bool isPaused() {
+      return state == RACE_PAUSED;
+    }
+    bool isFinished () {
+      return state == RACE_FINISHED;
+    }
+    bool isInitialized() {
+      return state == RACE_SETUP;
+    }
+    void init() {
+      state = RACE_SETUP;
+    }
+    void start() {
+      state = RACE_STARTED;
+    }
+    void pause() {
+      state = RACE_PAUSED;
+    }
+    void finish() {
+      state = RACE_FINISHED;
+    }
+};
+
+/*****************************************************************************************
+   Class Race instantiations
+ *****************************************************************************************/
+Race race;
 
 /*****************************************************************************************
    Class Lane
@@ -146,6 +197,7 @@ class Lane {
       reported = false;
     }
     void reset(bool enableHwFalseStart) {
+      reported = true;
       falseStart = false;
       hwFalseStartEnabled = enableHwFalseStart;
       count = -1L;
@@ -158,19 +210,28 @@ class Lane {
         reported = true;
       }
       if (hwFalseStartEnabled) {
-        if (!raceStarted && !falseStart && (count == 0)) {
+        if (!race.isStarted() && !falseStart && (count == 0)) {
           // false start detected,
           // switching lane off immediately
-          digitalWrite(pin, HIGH);
+          powerOff();
           falseStart = true;
         }
+        // switch power back on after false start penalty served
         if (falseStart &&
-            raceStarted &&
+            race.isStarted() &&
             ((millis() - falseStartPenaltyBegin) > delayMillis[delayMillisIndex])) {
-          digitalWrite(pin, LOW);
           falseStart = false; // reset false start "fuse"
+          powerOn();
         }
       }
+    }
+    void powerOn() {
+      if (!falseStart) {
+        digitalWrite(pin, LOW);
+      }
+    }
+    void powerOff() {
+      digitalWrite(pin, HIGH);
     }
     bool isFalseStart() {
       return falseStart;
@@ -242,24 +303,22 @@ Button togglePower("[BT08]", 48);
 class FalseStart {
   protected:
     byte pin;
-    bool enabled;
+    bool hwFalseStartEnabled;
     void reset() {
       // reset false start flags
-      lane1.reset(enabled);
-      lane2.reset(enabled);
-      lane3.reset(enabled);
-      lane4.reset(enabled);
-      lane5.reset(enabled);
-      lane6.reset(enabled);
-      raceStarted = false;
+      lane1.reset(hwFalseStartEnabled);
+      lane2.reset(hwFalseStartEnabled);
+      lane3.reset(hwFalseStartEnabled);
+      lane4.reset(hwFalseStartEnabled);
+      lane5.reset(hwFalseStartEnabled);
+      lane6.reset(hwFalseStartEnabled);
     }
   public:
     FalseStart(byte setPin) {
       pin = setPin;
     }
     void isButtonPressed() {
-      bool pressed = !digitalRead(pin);
-      if (pressed) {
+      if (!digitalRead(pin)) {
         init();
         delay(250); // wait 1/4s befor continuing
       }
@@ -270,12 +329,13 @@ class FalseStart {
                   !digitalRead(FS_1) << 1 |
                   !digitalRead(FS_2) << 2 |
                   !digitalRead(FS_3) << 3;
-      enabled = mode > 7;
-      reset();
-      if (enabled) { // false start HW enabled
+      hwFalseStartEnabled = mode > 7;
+      if (hwFalseStartEnabled) { // false start HW enabled
         falseStartPenaltyBegin = 0xFFFFFFFF;
         delayMillisIndex = mode - 8;
       }
+      race.finish();
+      reset();
     }
 };
 
@@ -334,7 +394,7 @@ void setup() {
   digitalWrite(PWR_5, HIGH);
   digitalWrite(PWR_6, HIGH);
   // shake the dust off the relays
-  jiggleRelays();
+  //jiggleRelays();
   delay(1000);
   // initialize globals
   falseStart.init();
@@ -438,10 +498,7 @@ void loop() {
     {
       String output;
       output = Serial.readStringUntil(']');
-      if (output == "BT01") { // start race
-        //      } else if (output == "BT06") { // power on
-        //      } else if (output == "BT05") { // power off
-      } else if (output == SL_1_ON) {
+      if (output == SL_1_ON) {
         digitalWrite(LED_1, LOW);
       } else if (output == SL_1_OFF) {
         digitalWrite(LED_1, HIGH);
@@ -463,7 +520,7 @@ void loop() {
         digitalWrite(LED_5, HIGH);
       } else if (output == GO_ON) { // race start
         falseStartPenaltyBegin = millis();
-        raceStarted = true;
+        race.start();
         digitalWrite(LED_GO, LOW);
       } else if (output == GO_OFF) {
         digitalWrite(LED_GO, HIGH);
@@ -480,41 +537,29 @@ void loop() {
       } else if (output == PWR_OFF) {
         digitalWrite(PWR_ALL, HIGH);
       } else if (output == PWR_1_ON) {
-        if (!lane1.isFalseStart()) {
-          digitalWrite(PWR_1, LOW);
-        }
+        lane1.powerOn();
       } else if (output == PWR_1_OFF) {
-        digitalWrite(PWR_1, HIGH);
+        lane1.powerOff();
       } else if (output == PWR_2_ON) {
-        if (!lane1.isFalseStart()) {
-          digitalWrite(PWR_2, LOW);
-        }
+        lane2.powerOn();
       } else if (output == PWR_2_OFF) {
-        digitalWrite(PWR_2, HIGH);
+        lane2.powerOff();
       } else if (output == PWR_3_ON) {
-        if (!lane1.isFalseStart()) {
-          digitalWrite(PWR_3, LOW);
-        }
+        lane3.powerOn();
       } else if (output == PWR_3_OFF) {
-        digitalWrite(PWR_3, HIGH);
+        lane3.powerOff();
       } else if (output == PWR_4_ON) {
-        if (!lane1.isFalseStart()) {
-          digitalWrite(PWR_4, LOW);
-        }
+        lane4.powerOn();
       } else if (output == PWR_4_OFF) {
-        digitalWrite(PWR_4, HIGH);
+        lane4.powerOff();
       } else if (output == PWR_5_ON) {
-        if (!lane1.isFalseStart()) {
-          digitalWrite(PWR_5, LOW);
-        }
+        lane5.powerOn();
       } else if (output == PWR_5_OFF) {
-        digitalWrite(PWR_5, HIGH);
+        lane5.powerOff();
       } else if (output == PWR_6_ON) {
-        if (!lane1.isFalseStart()) {
-          digitalWrite(PWR_6, LOW);
-        }
+        lane6.powerOn();
       } else if (output == PWR_6_OFF) {
-        digitalWrite(PWR_6, HIGH);
+        lane6.powerOff();
       }
     }
   }
