@@ -13,6 +13,7 @@
 
    Revision History
    __________ ____________________ _______________________________________________________
+   2016-10-25 Gabriel Inäbnit      Removed false start init button - no longer needed
    2016-10-24 Gabriel Inäbnit      Fix false start GO command with HW false start enabled
    2016-10-22 Gabriel Inäbnit      HW false start enable/disable, penalty, reset
    2016-10-21 Gabriel Inäbnit      false start detection and penalty procedure
@@ -85,7 +86,6 @@
 #define FS_1 23
 #define FS_2 24
 #define FS_3 25
-#define FS_INIT 26
 
 /*****************************************************************************************
    Global variables
@@ -302,7 +302,6 @@ Button togglePower("[BT08]", 48);
  *****************************************************************************************/
 class FalseStart {
   protected:
-    byte pin;
     bool hwFalseStartEnabled;
     void reset() {
       // reset false start flags
@@ -314,14 +313,8 @@ class FalseStart {
       lane6.reset(hwFalseStartEnabled);
     }
   public:
-    FalseStart(byte setPin) {
-      pin = setPin;
-    }
-    void isButtonPressed() {
-      if (!digitalRead(pin)) {
-        init();
-        delay(250); // wait 1/4s befor continuing
-      }
+    FalseStart() {
+      // empty constructor
     }
     void init() {
       // read pins of 4-bit encoder
@@ -342,7 +335,7 @@ class FalseStart {
 /*****************************************************************************************
    Class FalseStart instantiations
  *****************************************************************************************/
-FalseStart falseStart(FS_INIT);
+FalseStart falseStart;
 
 /*****************************************************************************************
    initializations and configurations of I/O pins
@@ -360,7 +353,6 @@ void setup() {
   pinMode(FS_1, INPUT_PULLUP);
   pinMode(FS_2, INPUT_PULLUP);
   pinMode(FS_3, INPUT_PULLUP);
-  pinMode(FS_INIT, INPUT_PULLUP);
   // output pins
   pinMode(LED_1, OUTPUT);
   pinMode(LED_2, OUTPUT);
@@ -589,7 +581,6 @@ void loop() {
   //  stopAndGoLane4.isButtonPressed();
   //  stopAndGoLane5.isButtonPressed();
   //  stopAndGoLane6.isButtonPressed();
-  falseStart.isButtonPressed();
   delay(3);
   attachAllInterrupts();
 }
