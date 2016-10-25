@@ -394,12 +394,16 @@ void setup() {
   digitalWrite(PWR_5, HIGH);
   digitalWrite(PWR_6, HIGH);
   // shake the dust off the relays
-  //jiggleRelays();
+  jiggleRelays();
   delay(1000);
   // initialize globals
   falseStart.init();
   relaysOn(LOW); // switch all power relays on (LOW = on)
   // all defined, ready to read/write from/to serial port
+  Serial3.begin(serialSpeed);
+  while (!Serial3) {
+    // // wait..
+  }
   Serial.begin(serialSpeed);
   while (!Serial) {
     ; // wait for serial port to connect. Needed for native USB
@@ -498,7 +502,10 @@ void loop() {
     {
       String output;
       output = Serial.readStringUntil(']');
-      if (output == SL_1_ON) {
+      Serial3.println(output);
+      if (output == "RC0E00:00:00") {
+        falseStart.init();
+      } else if (output == SL_1_ON) {
         digitalWrite(LED_1, LOW);
       } else if (output == SL_1_OFF) {
         digitalWrite(LED_1, HIGH);
@@ -528,10 +535,6 @@ void loop() {
         digitalWrite(LED_STOP, LOW);
       } else if (output == STOP_OFF) {
         digitalWrite(LED_STOP, HIGH);
-        //      } else if (output == CAUTION_ON) {
-        //        digitalWrite(LED_CAUTION, LOW);
-        //      } else if (output == CAUTION_OFF) {
-        //        digitalWrite(LED_CAUTION, HIGH);
       } else if (output == PWR_ON) {
         digitalWrite(PWR_ALL, LOW);
       } else if (output == PWR_OFF) {
