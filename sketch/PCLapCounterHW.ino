@@ -136,9 +136,11 @@ class Race {
     unsigned long penaltyTimeMillis;
     void penaltyStart() {
       if (previousState == RACE_INIT) {
-        penaltyBeginMillis = millis();
-      } else if (previousState == RACE_PAUSED) {
-        penaltyBeginMillis = penaltyBeginMillis + (millis() - penaltyBeginMillis) - penaltyServedMillis;
+        penaltyBeginMillis = millis(); // starting the race
+      } else if (previousState == RACE_PAUSED) { // resuming current race
+        penaltyBeginMillis = penaltyBeginMillis
+                             + (millis() - penaltyBeginMillis)
+                             - penaltyServedMillis;
       }
     }
     unsigned long getPenaltyServedMillis() {
