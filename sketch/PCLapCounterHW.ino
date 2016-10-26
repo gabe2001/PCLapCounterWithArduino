@@ -101,7 +101,6 @@ const char lapTime[][7] =
   "[SF06$"
 };
 
-unsigned long falseStartPenaltyBegin;
 const unsigned long delayMillis[] =
 { // index
   0L, // 0
@@ -113,15 +112,14 @@ const unsigned long delayMillis[] =
   6000L, // 6
   7000L  // 7
 };
-byte delayMillisIndex = 0;
 
 /*****************************************************************************************
    Class Race
  *****************************************************************************************/
-#define RACE_SETUP 0
-#define RACE_STARTED 1
-#define RACE_FINISHED 3
-#define RACE_PAUSED 4
+#define RACE_SETUP '0'
+#define RACE_STARTED '1'
+#define RACE_FINISHED '2'
+#define RACE_PAUSED '3'
 #define CLOCK_REMAINING_TIME 'R'
 #define CLOCK_ELAPSED_TIME 'E'
 #define CLOCK_SEGMENT_REMAINING_TIME 'S'
@@ -129,11 +127,51 @@ byte delayMillisIndex = 0;
 
 class Race {
   protected:
-    volatile byte state;
-    char clockType;
+    char state;
+    bool falseStartEnabled;
+    bool falseStartDetected;
+    unsigned long falseStartPenaltyBegin;
+    unsigned long falseStartPenaltyServed;
+    unsigned long falseStartPenaltyMillis;
   public:
     Race() {
       state = RACE_FINISHED;
+      falseStartEnabled = false;
+      falseStartDetected = false;
+      falseStartPenaltyBegin = 0L;
+      falseStartPenaltyServed = 0L;
+      falseStartPenaltyMillis = 0L;
+    }
+    void setFalseStartEnabled(bool yesOrNo, byte penaltyIndex) {
+      falseStartEnabled = yesOrNo;
+      if (falseStartEnabled) { // false start HW enabled
+        falseStartDetected = false;
+        falseStartPenaltyBegin = 0xFFFFFFFF;
+        falseStartPenaltyServed = 0;
+        falseStartPenaltyMillis = delayMillis[penaltyIndex];
+      }
+    }
+    void setFalseStartDetected(bool yesOrNo) {
+      falseStartDetected = yesOrNo;
+    }
+    bool isFalseStartPenaltyServed() {
+      // race has been started but during penalty a track call occured
+      // we have to suspend the penalty for the duration of the track call
+      // let's assume there is only *ONE* track call during the short false start penalty period
+      // while in race paused mode, keep pushing the falseStartPenaltyBegin value up
+      unsigned long now = millis();
+      if (falseStartDetected && (falseStartPenaltyServed == 0) && isPaused()) {
+        falseStartPenaltyServed = now - falseStartPenaltyBegin;
+      } else if (falseStartDetected && isPaused()) {
+        falseStartPenaltyBegin = now - falseStartPenaltyMillis + falseStartPenaltyServed;
+      }
+      return (now - falseStartPenaltyBegin) > falseStartPenaltyMillis;
+    }
+    bool isFalseStartDetected() {
+      return falseStartDetected;
+    }
+    bool isFalseStartEnabled() {
+      return falseStartEnabled;
     }
     bool isStarted() {
       return state == RACE_STARTED;
@@ -144,7 +182,7 @@ class Race {
     bool isFinished () {
       return state == RACE_FINISHED;
     }
-    bool isInitialized() {
+    bool isInit() {
       return state == RACE_SETUP;
     }
     void init() {
@@ -152,9 +190,15 @@ class Race {
     }
     void start() {
       state = RACE_STARTED;
+      if (falseStartEnabled && !falseStartDetected) {
+        falseStartPenaltyBegin = millis();
+      }
     }
     void pause() {
       state = RACE_PAUSED;
+      if (falseStartDetected) {
+
+      }
     }
     void finish() {
       state = RACE_FINISHED;
@@ -178,7 +222,6 @@ class Lane {
     byte lane;
     byte pin;
     bool falseStart;
-    bool hwFalseStartEnabled;
   public:
     Lane(byte setLane) {
       start = 0L;
@@ -188,7 +231,6 @@ class Lane {
       pin = setLane + 30;
       reported = true;
       falseStart = false;
-      hwFalseStartEnabled = false;
     }
     void lapDetected() { // called by ISR, short and sweet
       start = finish;
@@ -196,10 +238,9 @@ class Lane {
       count++;
       reported = false;
     }
-    void reset(bool enableHwFalseStart) {
+    void reset() {
       reported = true;
       falseStart = false;
-      hwFalseStartEnabled = enableHwFalseStart;
       count = -1L;
     }
     void reportLap() {
@@ -209,17 +250,16 @@ class Lane {
         Serial.println(']');
         reported = true;
       }
-      if (hwFalseStartEnabled) {
-        if (!race.isStarted() && !falseStart && (count == 0)) {
+      if (race.isFalseStartEnabled()) {
+        if (race.isInit() && !falseStart && (count == 0)) {
           // false start detected,
           // switching lane off immediately
           powerOff();
           falseStart = true;
+          race.setFalseStartDetected(true);
         }
         // switch power back on after false start penalty served
-        if (falseStart &&
-            race.isStarted() &&
-            ((millis() - falseStartPenaltyBegin) > delayMillis[delayMillisIndex])) {
+        if (falseStart && race.isFalseStartPenaltyServed()) {
           falseStart = false; // reset false start "fuse"
           powerOn();
         }
@@ -271,7 +311,7 @@ class Button {
     }
     void isButtonPressed() {
       pressed = !digitalRead(pin);
-      if (!reported && pressed) {
+      if (!reported && pressed && race.isStarted()) {
         reportButton();
       }
       reported = pressed;
@@ -302,15 +342,14 @@ Button togglePower("[BT08]", 48);
  *****************************************************************************************/
 class FalseStart {
   protected:
-    bool hwFalseStartEnabled;
     void reset() {
       // reset false start flags
-      lane1.reset(hwFalseStartEnabled);
-      lane2.reset(hwFalseStartEnabled);
-      lane3.reset(hwFalseStartEnabled);
-      lane4.reset(hwFalseStartEnabled);
-      lane5.reset(hwFalseStartEnabled);
-      lane6.reset(hwFalseStartEnabled);
+      lane1.reset();
+      lane2.reset();
+      lane3.reset();
+      lane4.reset();
+      lane5.reset();
+      lane6.reset();
     }
   public:
     FalseStart() {
@@ -322,12 +361,7 @@ class FalseStart {
                   !digitalRead(FS_1) << 1 |
                   !digitalRead(FS_2) << 2 |
                   !digitalRead(FS_3) << 3;
-      hwFalseStartEnabled = mode > 7;
-      if (hwFalseStartEnabled) { // false start HW enabled
-        falseStartPenaltyBegin = 0xFFFFFFFF;
-        delayMillisIndex = mode - 8;
-      }
-      race.finish();
+      race.setFalseStartEnabled(mode > 7, mode - 8);
       reset();
     }
 };
@@ -386,10 +420,10 @@ void setup() {
   digitalWrite(PWR_5, HIGH);
   digitalWrite(PWR_6, HIGH);
   // shake the dust off the relays
-  jiggleRelays();
+  //jiggleRelays();
   delay(1000);
   // initialize globals
-  falseStart.init();
+  //falseStart.init();
   relaysOn(LOW); // switch all power relays on (LOW = on)
   // all defined, ready to read/write from/to serial port
   Serial3.begin(serialSpeed);
@@ -488,15 +522,19 @@ void lapDetected6() {
  *****************************************************************************************/
 void loop() {
   detachAllInterrupts();
-  while (Serial.available()) // was if -> read one command per cycle -> no difference
-  {
+  while (Serial.available()) {
     Serial.readStringUntil('[');
     {
-      String output;
-      output = Serial.readStringUntil(']');
+      String output = Serial.readStringUntil(']');
       Serial3.println(output);
-      if (output == "RC0E00:00:00") {
+      String shortOutput = output.substring(0, 3);
+      if (shortOutput == "RC0") {
         falseStart.init();
+        race.init();
+//      } else if (shortOutput == "RC1") {
+//        race.start(); // misses the first second
+//      } else if (shortOutput == "RC3") {
+//        race.pause(); // kicks in after detection delay
       } else if (output == SL_1_ON) {
         digitalWrite(LED_1, LOW);
       } else if (output == SL_1_OFF) {
@@ -518,10 +556,10 @@ void loop() {
       } else if (output == SL_5_OFF) {
         digitalWrite(LED_5, HIGH);
       } else if (output == GO_ON) { // race start
-        falseStartPenaltyBegin = millis();
         race.start();
         digitalWrite(LED_GO, LOW);
       } else if (output == GO_OFF) {
+        race.pause();
         digitalWrite(LED_GO, HIGH);
       } else if (output == STOP_ON) {
         digitalWrite(LED_STOP, LOW);
