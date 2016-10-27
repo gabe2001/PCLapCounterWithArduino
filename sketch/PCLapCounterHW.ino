@@ -96,7 +96,8 @@
 /*****************************************************************************************
    Global variables
  *****************************************************************************************/
-const unsigned int serialSpeed = 57600;
+const long serialSpeed = 57600;
+const long serial3Speed = 38400;
 const char lapTime[][7] =
 {
   "[SF01$",
@@ -476,13 +477,13 @@ void setup() {
   //falseStart.init();
   relaysOn(LOW); // switch all power relays on (LOW = on)
   // all defined, ready to read/write from/to serial port
-  Serial3.begin(serialSpeed);
-  while (!Serial3) {
-    // // wait..
-  }
   Serial.begin(serialSpeed);
   while (!Serial) {
     ; // wait for serial port to connect. Needed for native USB
+  }
+  Serial3.begin(serial3Speed);
+  while (!Serial3) {
+    ; // wait..
   }
 }
 
@@ -686,7 +687,7 @@ void loop() {
         lane6.powerOn();
       } else if (output == PWR_6_OFF) {
         lane6.powerOff();
-      } else if (raceClockState == "DEV") {
+      } else if (raceClockState == "DEB") {
         race.debug();
       }
     }
