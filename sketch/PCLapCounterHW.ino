@@ -688,7 +688,6 @@ void loop() {
       } else if (output == PWR_6_OFF) {
         lane6.powerOff();
       } else if (raceClockState == "DEB") {
-        race.debug();
       }
     }
   }
