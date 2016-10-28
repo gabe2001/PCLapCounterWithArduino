@@ -97,7 +97,7 @@
    Global variables
  *****************************************************************************************/
 const long serialSpeed = 57600;
-const long serial3Speed = 38400;
+const long serial3Speed = 115200;
 const char lapTime[][7] =
 {
   "[SF01$",
