@@ -91,7 +91,7 @@
    Global variables
  *****************************************************************************************/
 const long serialSpeed = 57600;
-const long serial3Speed = 38400;
+const long serial3Speed = 115200;
 const char lapTime[][7] =
 {
   "[SF01$",
@@ -159,13 +159,6 @@ class Race {
       penaltyBeginMillis = 0L;
       penaltyServedMillis = 0L;
       penaltyTimeMillis = 0L;
-    }
-    void debug(String message) {
-      Serial3.println(message);
-      Serial.println(message);
-      while (Serial3.available()) {
-        Serial.write(Serial3.read());
-      }
     }
     void debug() {
       Serial3.print("            Started ? "); Serial3.println(isStarted() ? "yes" : "no");
@@ -646,8 +639,6 @@ void loop() {
         lane6.powerOff();
       } else if (shortOutput == "DEB") {
         race.debug();
-      } else {
-        race.debug(output);
       }
     }
   }
