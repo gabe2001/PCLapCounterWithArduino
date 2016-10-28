@@ -11,8 +11,14 @@
    Author: Gabriel Inäbnit
    Date  : 2016-10-14
 
+   TODO:
+   - aborting start/restart is bogus
+   - void startLights(byte pattern): get them patterns figured out
+   - use RC3S00:00:00 to establish end of segment state (S/F lights flicker when continue)
+
    Revision History
    __________ ____________________ _______________________________________________________
+   2016-10-28 Gabriel Inäbnit      Start/Finish lights on/off/blink depending race status
    2016-10-25 Gabriel Inäbnit      Removed false start init button - no longer needed
    2016-10-24 Gabriel Inäbnit      Fix false start GO command with HW false start enabled
    2016-10-22 Gabriel Inäbnit      HW false start enable/disable, penalty, reset
@@ -226,6 +232,9 @@ class Race {
     }
     bool isInit() {
       return state == RACE_INIT;
+    }
+    bool fromState(char from) {
+      return from == previousState;
     }
     void init() {
       previousState = state;
@@ -518,6 +527,19 @@ void relaysOn (bool onOff) {
   digitalWrite(PWR_6, onOff);
 }
 
+#define OOOOI  1
+#define OOOIO  2
+#define OOIOO  4
+#define OIOOO  8
+#define IOOOO 16
+void startLights(byte pattern) {
+  digitalWrite(LED_1, pattern & OOOOI);
+  digitalWrite(LED_2, pattern & OOOIO);
+  digitalWrite(LED_3, pattern & OOIOO);
+  digitalWrite(LED_4, pattern & OIOOO);
+  digitalWrite(LED_5, pattern & IOOOO);
+}
+
 void attachAllInterrupts() {
   attachInterrupt(digitalPinToInterrupt(LANE_1), lapDetected1, RISING);
   attachInterrupt(digitalPinToInterrupt(LANE_2), lapDetected2, RISING);
@@ -568,16 +590,30 @@ void loop() {
     {
       String output = Serial.readStringUntil(']');
       Serial3.println(output);
-      String shortOutput = output.substring(0, 3);
-      if (shortOutput == "RC0") { // Race Clock - Race Setup
+      String raceClockState = output.substring(0, 3);
+      if (raceClockState == "RC0") { // Race Clock - Race Setup
+        if (race.fromState(RACE_FINISHED)) {
+          digitalWrite(LED_1, LOW);
+          digitalWrite(LED_2, LOW);
+          digitalWrite(LED_3, LOW);
+          digitalWrite(LED_4, LOW);
+          digitalWrite(LED_5, LOW);
+        }
         race.init();
         falseStart.init();
-        // } else if (shortOutput == "RC1") { // Race Clock - Race Started
+        // } else if (raceClockState == "RC1") { // Race Clock - Race Started
         //   race.start(); // misses the first second
         // } else if () { // Race Clock - Race Finished
         //   race.finish(); // not seen from PC Lap Counter
-        // } else if (shortOutput == "RC3") { // Race Clock - Race Paused
+        // } else if (raceClockState == "RC3") { // Race Clock - Race Paused
         //   race.pause(); // kicks in after detection delay
+      } else if (race.isPaused() && output == "RC3R00:00:00") { // Race Clock - Rem. Time 00:00:00
+        race.finish();
+        digitalWrite(LED_1, LOW);
+        digitalWrite(LED_2, LOW);
+        digitalWrite(LED_3, LOW);
+        digitalWrite(LED_4, LOW);
+        digitalWrite(LED_5, LOW);
       } else if (output == SL_1_ON) {
         digitalWrite(LED_1, LOW);
       } else if (output == SL_1_OFF) {
@@ -606,8 +642,22 @@ void loop() {
         digitalWrite(LED_GO, HIGH);
       } else if (output == STOP_ON) {
         digitalWrite(LED_STOP, LOW);
+        if (race.isPaused() && race.fromState(RACE_STARTED)) { // blink
+          digitalWrite(LED_1, HIGH);
+          digitalWrite(LED_2, LOW);
+          digitalWrite(LED_3, HIGH);
+          digitalWrite(LED_4, LOW);
+          digitalWrite(LED_5, HIGH);
+        }
       } else if (output == STOP_OFF) {
         digitalWrite(LED_STOP, HIGH);
+        if (race.isPaused() && race.fromState(RACE_STARTED)) { // blink
+          digitalWrite(LED_1, LOW);
+          digitalWrite(LED_2, HIGH);
+          digitalWrite(LED_3, LOW);
+          digitalWrite(LED_4, HIGH);
+          digitalWrite(LED_5, LOW);
+        }
       } else if (output == PWR_ON) {
         digitalWrite(PWR_ALL, LOW);
       } else if (output == PWR_OFF) {
@@ -636,7 +686,7 @@ void loop() {
         lane6.powerOn();
       } else if (output == PWR_6_OFF) {
         lane6.powerOff();
-      } else if (shortOutput == "DEV") {
+      } else if (raceClockState == "DEV") {
         race.debug();
       }
     }
