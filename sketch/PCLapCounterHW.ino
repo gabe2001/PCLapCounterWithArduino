@@ -482,7 +482,7 @@ void setup() {
   digitalWrite(PWR_5, HIGH);
   digitalWrite(PWR_6, HIGH);
   // shake the dust off the relays
-  //jiggleRelays();
+  jiggleRelays();
   delay(1000);
   // initialize globals
   relaysOn(LOW); // switch all power relays on (LOW = on)
@@ -536,6 +536,13 @@ void relaysOn (bool onOff) {
   digitalWrite(PWR_4, onOff);
   digitalWrite(PWR_5, onOff);
   digitalWrite(PWR_6, onOff);
+  digitalWrite(LED_1, !onOff);
+  digitalWrite(LED_2, !onOff);
+  digitalWrite(LED_3, !onOff);
+  digitalWrite(LED_4, !onOff);
+  digitalWrite(LED_5, !onOff);
+  digitalWrite(LED_GO, onOff);
+  digitalWrite(LED_STOP, !onOff);
 }
 
 #define OOOOI  1
@@ -605,11 +612,12 @@ void loop() {
       // String raceClockTime = output.substring(4, 8); // HH:MM:SS
       if (raceClockState == "RC0") { // Race Clock - Race Setup
         if (race.fromState(RACE_FINISHED)) {
-          digitalWrite(LED_1, LOW);
-          digitalWrite(LED_2, LOW);
-          digitalWrite(LED_3, LOW);
-          digitalWrite(LED_4, LOW);
-          digitalWrite(LED_5, LOW);
+          relaysOn(HIGH);
+          //          digitalWrite(LED_1, LOW);
+          //          digitalWrite(LED_2, LOW);
+          //          digitalWrite(LED_3, LOW);
+          //          digitalWrite(LED_4, LOW);
+          //          digitalWrite(LED_5, LOW);
         }
         race.init();
         falseStart.init();
@@ -675,8 +683,14 @@ void loop() {
         }
       } else if (output == PWR_ON) {
         digitalWrite(PWR_ALL, LOW);
+        if (race.isFinished()) {
+          relaysOn(LOW);
+        }
       } else if (output == PWR_OFF) {
         digitalWrite(PWR_ALL, HIGH);
+        if (race.isFinished()) {
+          relaysOn(HIGH);
+        }
       } else if (output == PWR_1_ON) {
         lane1.powerOn();
       } else if (output == PWR_1_OFF) {
