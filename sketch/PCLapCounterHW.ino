@@ -7,6 +7,7 @@
    controls the power relays as well as any signal LEDs and manages external buttons.
 
    See http://pclapcounter.be/arduino.html for the input/output protocol.
+   Minimum PC Lap Counter version: 5.40
 
    Author: Gabriel Inäbnit
    Date  : 2016-10-14
@@ -14,10 +15,10 @@
    TODO:
    - aborting start/restart is bogus
    - void startLights(byte pattern): get them patterns figured out
-   - use RC3S00:00:00 to establish end of segment state (S/F lights flicker when continue)
 
    Revision History
    __________ ____________________ _______________________________________________________
+   2016-10-31 Gabriel Inäbnit      Race Clock - Race Finished status (RC2) PCLC v5.40
    2016-10-28 Gabriel Inäbnit      Start/Finish lights on/off/blink depending race status
    2016-10-25 Gabriel Inäbnit      Removed false start init button - no longer needed
    2016-10-24 Gabriel Inäbnit      Fix false start GO command with HW false start enabled
@@ -131,6 +132,8 @@ const unsigned long delayMillis[] =
 #define CLOCK_ELAPSED_TIME 'E'
 #define CLOCK_SEGMENT_REMAINING_TIME 'S'
 #define LAPS_REMAINING 'L'
+#define ON true
+#define OFF false
 
 class Race {
   protected:
@@ -138,6 +141,7 @@ class Race {
     char previousState;
     bool falseStartEnabled;
     bool falseStartDetected;
+    bool startingLights;
     unsigned long penaltyBeginMillis;
     unsigned long penaltyServedMillis;
     unsigned long penaltyTimeMillis;
@@ -162,6 +166,7 @@ class Race {
       previousState = RACE_FINISHED;
       falseStartEnabled = false;
       falseStartDetected = false;
+      startingLights = OFF;
       penaltyBeginMillis = 0L;
       penaltyServedMillis = 0L;
       penaltyTimeMillis = 0L;
@@ -253,6 +258,12 @@ class Race {
     void finish() {
       previousState = state;
       state = RACE_FINISHED;
+    }
+    void setStartingLights(bool onOff) {
+      startingLights = onOff;
+    }
+    bool areStartingLights(bool onOff) {
+      return startingLights == onOff;
     }
 };
 
@@ -408,10 +419,10 @@ class FalseStart {
     }
     void init() {
       // read pins of 4-bit encoder
-      byte mode = !digitalRead(FS_0) |
-                  !digitalRead(FS_1) << 1 |
+      byte mode = !digitalRead(FS_3) << 3 |
                   !digitalRead(FS_2) << 2 |
-                  !digitalRead(FS_3) << 3;
+                  !digitalRead(FS_1) << 1 |
+                  !digitalRead(FS_0);
       race.initFalseStart(mode);
       reset();
     }
@@ -474,7 +485,6 @@ void setup() {
   //jiggleRelays();
   delay(1000);
   // initialize globals
-  //falseStart.init();
   relaysOn(LOW); // switch all power relays on (LOW = on)
   // all defined, ready to read/write from/to serial port
   Serial.begin(serialSpeed);
@@ -591,7 +601,8 @@ void loop() {
     {
       String output = Serial.readStringUntil(']');
       Serial3.println(output);
-      String raceClockState = output.substring(0, 3);
+      String raceClockState = output.substring(0, 3); // RC#
+      // String raceClockTime = output.substring(4, 8); // HH:MM:SS
       if (raceClockState == "RC0") { // Race Clock - Race Setup
         if (race.fromState(RACE_FINISHED)) {
           digitalWrite(LED_1, LOW);
@@ -602,22 +613,22 @@ void loop() {
         }
         race.init();
         falseStart.init();
-        // } else if (raceClockState == "RC1") { // Race Clock - Race Started
+        // } else if (raceClockState == "RC1" && !race.isStarted) { // Race Clock - Race Started
         //   race.start(); // misses the first second
-        // } else if () { // Race Clock - Race Finished
-        //   race.finish(); // not seen from PC Lap Counter
-        // } else if (raceClockState == "RC3") { // Race Clock - Race Paused
-        //   race.pause(); // kicks in after detection delay
-      } else if (race.isPaused() && output == "RC3R00:00:00") { // Race Clock - Rem. Time 00:00:00
+      } else if (raceClockState == "RC2") { // Race Clock - Race Finished
         race.finish();
         digitalWrite(LED_1, LOW);
         digitalWrite(LED_2, LOW);
         digitalWrite(LED_3, LOW);
         digitalWrite(LED_4, LOW);
         digitalWrite(LED_5, LOW);
+      } else if (raceClockState == "RC3" && !race.isPaused()) { // Race Clock - Race Paused
+        race.pause(); // track call immediate, segment end after detection delay
       } else if (output == SL_1_ON) {
+        race.setStartingLights(ON);
         digitalWrite(LED_1, LOW);
       } else if (output == SL_1_OFF) {
+        race.setStartingLights(OFF);
         digitalWrite(LED_1, HIGH);
       } else if (output == SL_2_ON) {
         digitalWrite(LED_2, LOW);
@@ -652,7 +663,10 @@ void loop() {
         }
       } else if (output == STOP_OFF) {
         digitalWrite(LED_STOP, HIGH);
-        if (race.isPaused() && race.fromState(RACE_STARTED)) { // blink
+        // flickers when race is continued (track or segment)
+        if (race.isPaused() &&
+            race.fromState(RACE_STARTED) &&
+            race.areStartingLights(OFF)) { // blink
           digitalWrite(LED_1, LOW);
           digitalWrite(LED_2, HIGH);
           digitalWrite(LED_3, LOW);
@@ -688,6 +702,7 @@ void loop() {
       } else if (output == PWR_6_OFF) {
         lane6.powerOff();
       } else if (raceClockState == "DEB") {
+        race.debug();
       }
     }
   }
