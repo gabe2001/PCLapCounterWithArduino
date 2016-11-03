@@ -13,6 +13,7 @@
    Date  : 2016-10-14
 
    TODO:
+   - use relays NC for computerless power to track
    - aborting start/restart is bogus
    - void startLights(byte pattern): get them patterns figured out
 
@@ -329,11 +330,11 @@ class Lane {
     }
     void powerOn() {
       if (!falseStart) {
-        digitalWrite(pin, LOW);
+        digitalWrite(pin, HIGH);
       }
     }
     void powerOff() {
-      digitalWrite(pin, HIGH);
+      digitalWrite(pin, LOW);
     }
     bool isFalseStart() {
       return falseStart;
@@ -530,12 +531,13 @@ void jiggleRelays() {
 }
 
 void relaysOn (bool onOff) {
-  digitalWrite(PWR_1, onOff);
-  digitalWrite(PWR_2, onOff);
-  digitalWrite(PWR_3, onOff);
-  digitalWrite(PWR_4, onOff);
-  digitalWrite(PWR_5, onOff);
-  digitalWrite(PWR_6, onOff);
+  digitalWrite(PWR_ALL, !onOff);
+  digitalWrite(PWR_1, !onOff);
+  digitalWrite(PWR_2, !onOff);
+  digitalWrite(PWR_3, !onOff);
+  digitalWrite(PWR_4, !onOff);
+  digitalWrite(PWR_5, !onOff);
+  digitalWrite(PWR_6, !onOff);
   digitalWrite(LED_1, !onOff);
   digitalWrite(LED_2, !onOff);
   digitalWrite(LED_3, !onOff);
