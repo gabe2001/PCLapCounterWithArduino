@@ -1,7 +1,7 @@
 /*****************************************************************************************
    Slotcar Race Controller for PCLapCounter Software
 
-   (C) Copyright 2016 el.Dude - www.eldude.nl
+   (C) Copyright 2016-2017 el.Dude - www.eldude.nl
 
    Arduino MEGA 2560 based slotcar race controller. Capture start/finish signals,
    controls the power relays as well as any signal LEDs and manages external buttons.
@@ -13,7 +13,8 @@
    Date  : 2016-10-14
 
    TODO:
-   - use relays NC for computerless power to track
+   - WIP: use relays NC for computerless power to track
+   - disable track call button when race is not active (or change button behaviour)
    - aborting start/restart is bogus
    - void startLights(byte pattern): get them patterns figured out
 
