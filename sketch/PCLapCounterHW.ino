@@ -73,28 +73,28 @@
 #define PWR_6_ON  "PW061"
 #define PWR_6_OFF "PW060"
 
-#define LED_1 5
-#define LED_2 6
-#define LED_3 7
-#define LED_4 8
-#define LED_5 9
+#define LED_1 23
+#define LED_2 25
+#define LED_3 27
+#define LED_4 29
+#define LED_5 31
 
-#define LED_GO 10
-#define LED_STOP 11
-#define LED_CAUTION 12
+#define LED_GO 26
+#define LED_STOP 22
+#define LED_CAUTION 24
 
 #define PWR_ALL 30
-#define PWR_1   31
-#define PWR_2   32
-#define PWR_3   33
-#define PWR_4   34
-#define PWR_5   35
-#define PWR_6   36
+#define PWR_1   12
+#define PWR_2   13
+#define PWR_3   11
+#define PWR_4   9
+#define PWR_5   7
+#define PWR_6   5
 
-#define FS_0 22
-#define FS_1 23
-#define FS_2 24
-#define FS_3 25
+#define FS_0 10
+#define FS_1 8
+#define FS_2 6
+#define FS_3 4
 
 /*****************************************************************************************
    Global variables
@@ -385,15 +385,15 @@ class Button {
 /*****************************************************************************************
    Class Button instantiations
  *****************************************************************************************/
-Button startRace("[BT01]", 44);
-Button restartRace("[BT02]", 48);
-Button pauseRace("[BT03]", 43);
-//Button startPauseRestartRace("[BT04]", 44);
-//Button powerOff("[BT05]", 45);
-//Button powerOn("[BT06]", 46);
-//Button endOfRace("[BT07]", 47);
-//Button togglePower("[BT08]", 48);
-//Button toggleYelloFlag("[BT09]", 49);
+Button startRace("[BT01]", 47);   // pin 5
+Button restartRace("[BT02]", 45); // pin 6
+Button pauseRace("[BT03]", 43);   // pin 7
+//Button startPauseRestartRace("[BT04]", 41);
+//Button powerOff("[BT05]", 48);
+//Button powerOn("[BT06]", 49);
+//Button endOfRace("[BT07]", 50);
+//Button togglePower("[BT08]", 51);
+//Button toggleYelloFlag("[BT09]", 52);
 //Button stopAndGoLane1("[SG01]", 22);
 //Button stopAndGoLane2("[SG02]", 23);
 //Button stopAndGoLane3("[SG03]", 24);
