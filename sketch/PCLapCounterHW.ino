@@ -13,13 +13,13 @@
    Date  : 2016-10-14
 
    TODO:
-   - WIP: use relays NC for computerless power to track
    - disable track call button when race is not active (or change button behaviour)
    - aborting start/restart is bogus
    - void startLights(byte pattern): get them patterns figured out
 
    Revision History
    __________ ____________________ _______________________________________________________
+   2017-01-12 Gabriel Inäbnit      Relays NC, red/green/yellow racer's stand lights
    2016-10-31 Gabriel Inäbnit      Race Clock - Race Finished status (RC2) PCLC v5.40
    2016-10-28 Gabriel Inäbnit      Start/Finish lights on/off/blink depending race status
    2016-10-25 Gabriel Inäbnit      Removed false start init button - no longer needed
@@ -31,8 +31,17 @@
  *****************************************************************************************/
 
 /*****************************************************************************************
+   Do not use pins:
+   Serial1: 18 & 19 - used for interrupts
+   Serial2: 16 & 17
+   Serial3: 14 & 15
+   BuiltIn: 13 - try to avoid it
+ *****************************************************************************************/
+
+/*****************************************************************************************
    Symbol definitions
  *****************************************************************************************/
+// lane to interrup pin mapping
 #define LANE_1 2
 #define LANE_2 3
 #define LANE_3 21
@@ -79,17 +88,31 @@
 #define LED_4 29
 #define LED_5 31
 
+#define LED_DSR1 41
+#define LED_DSG1 44
+#define LED_DSR2 42
+#define LED_DSG2 46
+#define LED_DSR3 40
+#define LED_DSG3 38
+#define LED_DSR4 36
+#define LED_DSG4 34
+#define LED_DSR5 32
+#define LED_DSG5 39
+#define LED_DSR6 37
+#define LED_DSG6 35
+
 #define LED_GO 26
 #define LED_STOP 22
 #define LED_CAUTION 24
 
+// PWR_x: x = lane
 #define PWR_ALL 30
-#define PWR_1   12
-#define PWR_2   13
-#define PWR_3   11
-#define PWR_4   9
-#define PWR_5   7
-#define PWR_6   5
+#define PWR_1   laneToRelayMapping[0] // 12
+#define PWR_2   laneToRelayMapping[1] // 13
+#define PWR_3   laneToRelayMapping[2] // 11
+#define PWR_4   laneToRelayMapping[3] //  9
+#define PWR_5   laneToRelayMapping[4] //  7
+#define PWR_6   laneToRelayMapping[5] //  5
 
 #define FS_0 10
 #define FS_1 8
@@ -99,8 +122,11 @@
 /*****************************************************************************************
    Global variables
  *****************************************************************************************/
-const long serialSpeed = 57600;
-const long serial3Speed = 115200;
+const long serialSpeed = 19200;
+const long serial3Speed = 19200;
+const byte laneToRelayMapping[] = { 12, 13, 11,  9,  7,  5 };
+const byte laneToGreenMapping[] = { 44, 46, 38, 34, 39, 35 };
+const byte laneToRedMapping[]   = { 41, 42, 40, 36, 32, 37 };
 const char lapTime[][7] =
 {
   "[SF01$",
@@ -285,6 +311,8 @@ class Lane {
     volatile bool reported;
     byte lane;
     byte pin;
+    byte green;
+    byte red;
     bool falseStart;
   public:
     Lane(byte setLane) {
@@ -292,7 +320,9 @@ class Lane {
       finish = 0L;
       count = -1L;
       lane = setLane - 1;
-      pin = setLane + 30;
+      pin = laneToRelayMapping[lane];
+      green = laneToGreenMapping[lane];
+      red = laneToRedMapping[lane];
       reported = true;
       falseStart = false;
     }
@@ -332,10 +362,14 @@ class Lane {
     void powerOn() {
       if (!falseStart) {
         digitalWrite(pin, HIGH);
+        digitalWrite(red, LOW);
+        digitalWrite(green, HIGH);
       }
     }
     void powerOff() {
       digitalWrite(pin, LOW);
+        digitalWrite(red, HIGH);
+        digitalWrite(green, LOW);
     }
     bool isFalseStart() {
       return falseStart;
@@ -359,6 +393,7 @@ class Button {
   protected:
     String button;
     byte pin;
+    unsigned int sleep;
     bool reported;
     bool pressed;
     void reportButton() {
@@ -366,9 +401,10 @@ class Button {
       reported = true;
     }
   public:
-    Button(String setButton, byte setPin) {
+    Button(String setButton, byte setPin, unsigned int setSleep) {
       button = setButton;
       pin = setPin;
+      sleep = setSleep;
       reported = false;
       pressed = false;
       pinMode(pin, INPUT_PULLUP);
@@ -377,6 +413,7 @@ class Button {
       pressed = !digitalRead(pin);
       if (!reported && pressed) {
         reportButton();
+        // delay(sleep);
       }
       reported = pressed;
     }
@@ -385,10 +422,10 @@ class Button {
 /*****************************************************************************************
    Class Button instantiations
  *****************************************************************************************/
-Button startRace("[BT01]", 47);   // pin 5
-Button restartRace("[BT02]", 45); // pin 6
-Button pauseRace("[BT03]", 43);   // pin 7
-//Button startPauseRestartRace("[BT04]", 41);
+Button raceStart("[BT01]", 47, 10);   // pin 5 (RJ11 1)
+Button raceRestart("[BT02]", 45, 10); // pin 6 (RJ11 2)
+Button racePause("[BT03]", 43, 10);   // pin 7 (RJ11 3, RJ11 4 = GND)
+//Button raceStartPauseRestart("[BT04]", 43, 100);
 //Button powerOff("[BT05]", 48);
 //Button powerOn("[BT06]", 49);
 //Button endOfRace("[BT07]", 50);
@@ -467,6 +504,19 @@ void setup() {
   pinMode(PWR_4, OUTPUT);
   pinMode(PWR_5, OUTPUT);
   pinMode(PWR_6, OUTPUT);
+  // plugin box
+  pinMode(LED_DSR1, OUTPUT);
+  pinMode(LED_DSR2, OUTPUT);
+  pinMode(LED_DSR3, OUTPUT);
+  pinMode(LED_DSR4, OUTPUT);
+  pinMode(LED_DSR5, OUTPUT);
+  pinMode(LED_DSR6, OUTPUT);
+  pinMode(LED_DSG1, OUTPUT);
+  pinMode(LED_DSG2, OUTPUT);
+  pinMode(LED_DSG3, OUTPUT);
+  pinMode(LED_DSG4, OUTPUT);
+  pinMode(LED_DSG5, OUTPUT);
+  pinMode(LED_DSG6, OUTPUT);
   // turn all LEDs off (HIGH = off)
   digitalWrite(LED_1, HIGH);
   digitalWrite(LED_2, HIGH);
@@ -476,6 +526,18 @@ void setup() {
   digitalWrite(LED_GO, HIGH);
   digitalWrite(LED_STOP, HIGH);
   //  digitalWrite(LED_CAUTION, HIGH);
+  digitalWrite(LED_DSR1, HIGH);
+  digitalWrite(LED_DSR2, HIGH);
+  digitalWrite(LED_DSR3, HIGH);
+  digitalWrite(LED_DSR4, HIGH);
+  digitalWrite(LED_DSR5, HIGH);
+  digitalWrite(LED_DSR6, HIGH);
+  digitalWrite(LED_DSG1, HIGH);
+  digitalWrite(LED_DSG2, HIGH);
+  digitalWrite(LED_DSG3, HIGH);
+  digitalWrite(LED_DSG4, HIGH);
+  digitalWrite(LED_DSG5, HIGH);
+  digitalWrite(LED_DSG6, HIGH);
   digitalWrite(PWR_ALL, HIGH);
   digitalWrite(PWR_1, HIGH);
   digitalWrite(PWR_2, HIGH);
@@ -499,7 +561,10 @@ void setup() {
   }
 }
 
-#define CLICK 10
+/*****************************************************************************************
+   relays initialization - shake the dust off the contacts
+ *****************************************************************************************/
+#define CLICK 20
 
 void jiggleRelays() {
   relaysOn(LOW);
@@ -531,6 +596,9 @@ void jiggleRelays() {
   relaysOn(HIGH);
 }
 
+/*****************************************************************************************
+   engage/disengage relays
+ *****************************************************************************************/
 void relaysOn (bool onOff) {
   digitalWrite(PWR_ALL, !onOff);
   digitalWrite(PWR_1, !onOff);
@@ -539,15 +607,52 @@ void relaysOn (bool onOff) {
   digitalWrite(PWR_4, !onOff);
   digitalWrite(PWR_5, !onOff);
   digitalWrite(PWR_6, !onOff);
-  digitalWrite(LED_1, !onOff);
-  digitalWrite(LED_2, !onOff);
-  digitalWrite(LED_3, !onOff);
-  digitalWrite(LED_4, !onOff);
-  digitalWrite(LED_5, !onOff);
-  digitalWrite(LED_GO, onOff);
-  digitalWrite(LED_STOP, !onOff);
+  relayLEDsOn(!onOff);
 }
 
+/*****************************************************************************************
+   corresponding LEDs pattern for engage/disengage relays
+ *****************************************************************************************/
+void relayLEDsOn(bool onOff) {
+  digitalWrite(LED_1, onOff);
+  digitalWrite(LED_2, onOff);
+  digitalWrite(LED_3, onOff);
+  digitalWrite(LED_4, onOff);
+  digitalWrite(LED_5, onOff);
+  digitalWrite(LED_GO, !onOff);
+  digitalWrite(LED_STOP, !onOff);
+  relayLEDsGreen(onOff);
+  relayLEDsRed(onOff);
+}
+
+void relayLEDsGreen(bool onOff) {
+  digitalWrite(LED_DSG1, onOff);
+  digitalWrite(LED_DSG2, onOff);
+  digitalWrite(LED_DSG3, onOff);
+  digitalWrite(LED_DSG4, onOff);
+  digitalWrite(LED_DSG5, onOff);
+  digitalWrite(LED_DSG6, onOff);
+}
+
+void relayLEDsRed(bool onOff) {
+  digitalWrite(LED_DSR1, !onOff);
+  digitalWrite(LED_DSR2, !onOff);
+  digitalWrite(LED_DSR3, !onOff);
+  digitalWrite(LED_DSR4, !onOff);
+  digitalWrite(LED_DSR5, !onOff);
+  digitalWrite(LED_DSR6, !onOff);
+}
+
+/*****************************************************************************************
+   yellow (red & gree) on/off
+ *****************************************************************************************/
+void yellowLEDs(bool onOff) {
+  relayLEDsGreen(onOff);
+  relayLEDsRed(!onOff);
+}
+
+/*****************************************************************************************
+   start light pattern switcher
 #define OOOOI  1
 #define OOOIO  2
 #define OOIOO  4
@@ -560,7 +665,11 @@ void startLights(byte pattern) {
   digitalWrite(LED_4, pattern & OIOOO);
   digitalWrite(LED_5, pattern & IOOOO);
 }
+ *****************************************************************************************/
 
+/*****************************************************************************************
+   enable interrupts
+ *****************************************************************************************/
 void attachAllInterrupts() {
   attachInterrupt(digitalPinToInterrupt(LANE_1), lapDetected1, RISING);
   attachInterrupt(digitalPinToInterrupt(LANE_2), lapDetected2, RISING);
@@ -570,6 +679,9 @@ void attachAllInterrupts() {
   attachInterrupt(digitalPinToInterrupt(LANE_6), lapDetected6, RISING);
 }
 
+/*****************************************************************************************
+   disable interrupts
+ *****************************************************************************************/
 void detachAllInterrupts() {
   detachInterrupt(digitalPinToInterrupt(LANE_1));
   detachInterrupt(digitalPinToInterrupt(LANE_2));
@@ -671,6 +783,7 @@ void loop() {
           digitalWrite(LED_3, HIGH);
           digitalWrite(LED_4, LOW);
           digitalWrite(LED_5, HIGH);
+          yellowLEDs(HIGH);
         }
       } else if (output == STOP_OFF) {
         digitalWrite(LED_STOP, HIGH);
@@ -683,6 +796,7 @@ void loop() {
           digitalWrite(LED_3, LOW);
           digitalWrite(LED_4, HIGH);
           digitalWrite(LED_5, LOW);
+          yellowLEDs(LOW);
         }
       } else if (output == PWR_ON) {
         digitalWrite(PWR_ALL, LOW);
@@ -731,15 +845,15 @@ void loop() {
   lane5.reportLap();
   lane6.reportLap();
   /** any buttons pressed */
-  startRace.isButtonPressed();
-  restartRace.isButtonPressed();
-  pauseRace.isButtonPressed();
-  //  startPauseRestartRace.isButtonPressed();
+  raceStart.isButtonPressed();
+  raceRestart.isButtonPressed();
+  racePause.isButtonPressed();
+  //  raceStartPauseRestart.isButtonPressed();
   //  powerOff.isButtonPressed();
   //  powerOn.isButtonPressed();
   //  endOfRace.isButtonPressed();
   //  togglePower.isButtonPressed();
-  //  toggleYelloFlag.isButtonPressed();
+  //  toggleYellowFlag.isButtonPressed();
   //  stopAndGoLane1.isButtonPressed();
   //  stopAndGoLane2.isButtonPressed();
   //  stopAndGoLane3.isButtonPressed();
