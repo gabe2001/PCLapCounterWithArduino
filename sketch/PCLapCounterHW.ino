@@ -101,14 +101,14 @@
 #define LED_DSR6 37
 #define LED_DSG6 35
 
-#define LED_GO 26
 #define LED_STOP 22
 #define LED_CAUTION 24
+#define LED_GO 26
 
 // PWR_x: x = lane
 #define PWR_ALL 30
 #define PWR_1   laneToRelayMapping[0] // 12
-#define PWR_2   laneToRelayMapping[1] // 13
+#define PWR_2   laneToRelayMapping[1] // 28
 #define PWR_3   laneToRelayMapping[2] // 11
 #define PWR_4   laneToRelayMapping[3] //  9
 #define PWR_5   laneToRelayMapping[4] //  7
@@ -124,7 +124,7 @@
  *****************************************************************************************/
 const long serialSpeed = 19200;
 const long serial3Speed = 19200;
-const byte laneToRelayMapping[] = { 12, 13, 11,  9,  7,  5 };
+const byte laneToRelayMapping[] = { 12, 28, 11,  9,  7,  5 };
 const byte laneToGreenMapping[] = { 44, 46, 38, 34, 39, 35 };
 const byte laneToRedMapping[]   = { 41, 42, 40, 36, 32, 37 };
 const char lapTime[][7] =
