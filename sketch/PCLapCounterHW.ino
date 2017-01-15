@@ -19,7 +19,6 @@
 
    Revision History
    __________ ____________________ _______________________________________________________
-   2017-01-12 Gabriel Inäbnit      Relays NC, red/green/yellow racer's stand lights
    2016-10-31 Gabriel Inäbnit      Race Clock - Race Finished status (RC2) PCLC v5.40
    2016-10-28 Gabriel Inäbnit      Start/Finish lights on/off/blink depending race status
    2016-10-25 Gabriel Inäbnit      Removed false start init button - no longer needed
