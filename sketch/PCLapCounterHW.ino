@@ -19,7 +19,7 @@
 
    Revision History
    __________ ____________________ _______________________________________________________
-   2017-01-15 Gabriel Inäbnit      Relays NC, r/g/y racer's stand lights, lane mappings
+   2017-01-16 Gabriel Inäbnit      Relays NC, r/g/y racer's stand lights, lane mappings
    2016-10-31 Gabriel Inäbnit      Race Clock - Race Finished status (RC2) PCLC v5.40
    2016-10-28 Gabriel Inäbnit      Start/Finish lights on/off/blink depending race status
    2016-10-25 Gabriel Inäbnit      Removed false start init button - no longer needed
@@ -39,7 +39,13 @@
  *****************************************************************************************/
 
 /*****************************************************************************************
-   Symbol definitions
+   Symbol Definitions
+ *****************************************************************************************/
+#define ON HIGH
+#define OFF LOW
+
+/*****************************************************************************************
+   Pin Naming
  *****************************************************************************************/
 // lane to interrup pin mapping
 #define LANE_1 2
@@ -48,39 +54,6 @@
 #define LANE_4 20
 #define LANE_5 19
 #define LANE_6 18
-
-#define SL_1_ON  "SL011"
-#define SL_1_OFF "SL010"
-#define SL_2_ON  "SL021"
-#define SL_2_OFF "SL020"
-#define SL_3_ON  "SL031"
-#define SL_3_OFF "SL030"
-#define SL_4_ON  "SL041"
-#define SL_4_OFF "SL040"
-#define SL_5_ON  "SL051"
-#define SL_5_OFF "SL050"
-
-#define GO_ON       "SL061"
-#define GO_OFF      "SL060"
-#define STOP_ON     "SL071"
-#define STOP_OFF    "SL070"
-#define CAUTION_ON  "SL081"
-#define CAUTION_OFF "SL080"
-
-#define PWR_ON    "PW001"
-#define PWR_OFF   "PW000"
-#define PWR_1_ON  "PW011"
-#define PWR_1_OFF "PW010"
-#define PWR_2_ON  "PW021"
-#define PWR_2_OFF "PW020"
-#define PWR_3_ON  "PW031"
-#define PWR_3_OFF "PW030"
-#define PWR_4_ON  "PW041"
-#define PWR_4_OFF "PW040"
-#define PWR_5_ON  "PW051"
-#define PWR_5_OFF "PW050"
-#define PWR_6_ON  "PW061"
-#define PWR_6_OFF "PW060"
 
 #define LED_1 23
 #define LED_2 25
@@ -114,10 +87,46 @@
 #define PWR_5   laneToRelayMapping[4] //  7
 #define PWR_6   laneToRelayMapping[5] //  5
 
-#define FS_0 10
-#define FS_1 8
-#define FS_2 6
-#define FS_3 4
+#define FSbit_0 10
+#define FSbit_1 8
+#define FSbit_2 6
+#define FSbit_3 4
+
+/*****************************************************************************************
+   PC Lap Counter Messages
+ *****************************************************************************************/
+#define SL_1_ON  "SL011"
+#define SL_1_OFF "SL010"
+#define SL_2_ON  "SL021"
+#define SL_2_OFF "SL020"
+#define SL_3_ON  "SL031"
+#define SL_3_OFF "SL030"
+#define SL_4_ON  "SL041"
+#define SL_4_OFF "SL040"
+#define SL_5_ON  "SL051"
+#define SL_5_OFF "SL050"
+
+#define GO_ON       "SL061"
+#define GO_OFF      "SL060"
+#define STOP_ON     "SL071"
+#define STOP_OFF    "SL070"
+#define CAUTION_ON  "SL081"
+#define CAUTION_OFF "SL080"
+
+#define PWR_ON    "PW001"
+#define PWR_OFF   "PW000"
+#define PWR_1_ON  "PW011"
+#define PWR_1_OFF "PW010"
+#define PWR_2_ON  "PW021"
+#define PWR_2_OFF "PW020"
+#define PWR_3_ON  "PW031"
+#define PWR_3_OFF "PW030"
+#define PWR_4_ON  "PW041"
+#define PWR_4_OFF "PW040"
+#define PWR_5_ON  "PW051"
+#define PWR_5_OFF "PW050"
+#define PWR_6_ON  "PW061"
+#define PWR_6_OFF "PW060"
 
 /*****************************************************************************************
    Global variables
@@ -160,8 +169,6 @@ const unsigned long delayMillis[] =
 #define CLOCK_ELAPSED_TIME 'E'
 #define CLOCK_SEGMENT_REMAINING_TIME 'S'
 #define LAPS_REMAINING 'L'
-#define ON true
-#define OFF false
 
 class Race {
   protected:
@@ -287,11 +294,11 @@ class Race {
       previousState = state;
       state = RACE_FINISHED;
     }
-    void setStartingLights(bool onOff) {
-      startingLights = onOff;
+    void setStartingLights(bool setOn) {
+      startingLights = setOn;
     }
-    bool areStartingLights(bool onOff) {
-      return startingLights == onOff;
+    bool areStartingLights(bool setOn) {
+      return startingLights == setOn;
     }
 };
 
@@ -458,10 +465,10 @@ class FalseStart {
     }
     void init() {
       // read pins of 4-bit encoder
-      byte mode = !digitalRead(FS_3) << 3 |
-                  !digitalRead(FS_2) << 2 |
-                  !digitalRead(FS_1) << 1 |
-                  !digitalRead(FS_0);
+      byte mode = !digitalRead(FSbit_3) << 3 |
+                  !digitalRead(FSbit_2) << 2 |
+                  !digitalRead(FSbit_1) << 1 |
+                  !digitalRead(FSbit_0);
       race.initFalseStart(mode);
       reset();
     }
@@ -484,10 +491,10 @@ void setup() {
   pinMode(LANE_5, INPUT_PULLUP);
   pinMode(LANE_6, INPUT_PULLUP);
   // input pins
-  pinMode(FS_0, INPUT_PULLUP);
-  pinMode(FS_1, INPUT_PULLUP);
-  pinMode(FS_2, INPUT_PULLUP);
-  pinMode(FS_3, INPUT_PULLUP);
+  pinMode(FSbit_0, INPUT_PULLUP);
+  pinMode(FSbit_1, INPUT_PULLUP);
+  pinMode(FSbit_2, INPUT_PULLUP);
+  pinMode(FSbit_3, INPUT_PULLUP);
   // output pins
   pinMode(LED_1, OUTPUT);
   pinMode(LED_2, OUTPUT);
@@ -517,28 +524,28 @@ void setup() {
   pinMode(LED_DSG4, OUTPUT);
   pinMode(LED_DSG5, OUTPUT);
   pinMode(LED_DSG6, OUTPUT);
-  // turn all LEDs off (HIGH = off)
-  digitalWrite(LED_1, HIGH);
-  digitalWrite(LED_2, HIGH);
-  digitalWrite(LED_3, HIGH);
-  digitalWrite(LED_4, HIGH);
-  digitalWrite(LED_5, HIGH);
-  digitalWrite(LED_GO, HIGH);
-  digitalWrite(LED_STOP, HIGH);
-  //  digitalWrite(LED_CAUTION, HIGH);
-  digitalWrite(LED_DSR1, HIGH);
-  digitalWrite(LED_DSR2, HIGH);
-  digitalWrite(LED_DSR3, HIGH);
-  digitalWrite(LED_DSR4, HIGH);
-  digitalWrite(LED_DSR5, HIGH);
-  digitalWrite(LED_DSR6, HIGH);
-  digitalWrite(LED_DSG1, HIGH);
-  digitalWrite(LED_DSG2, HIGH);
-  digitalWrite(LED_DSG3, HIGH);
-  digitalWrite(LED_DSG4, HIGH);
-  digitalWrite(LED_DSG5, HIGH);
-  digitalWrite(LED_DSG6, HIGH);
-  digitalWrite(PWR_ALL, HIGH);
+  // turn all LEDs off
+  digitalWrite(LED_1, LOW);
+  digitalWrite(LED_2, LOW);
+  digitalWrite(LED_3, LOW);
+  digitalWrite(LED_4, LOW);
+  digitalWrite(LED_5, LOW);
+  digitalWrite(LED_GO, LOW);
+  digitalWrite(LED_STOP, LOW);
+  //  digitalWrite(LED_CAUTION, LOW);
+  digitalWrite(LED_DSR1, LOW);
+  digitalWrite(LED_DSR2, LOW);
+  digitalWrite(LED_DSR3, LOW);
+  digitalWrite(LED_DSR4, LOW);
+  digitalWrite(LED_DSR5, LOW);
+  digitalWrite(LED_DSR6, LOW);
+  digitalWrite(LED_DSG1, LOW);
+  digitalWrite(LED_DSG2, LOW);
+  digitalWrite(LED_DSG3, LOW);
+  digitalWrite(LED_DSG4, LOW);
+  digitalWrite(LED_DSG5, LOW);
+  digitalWrite(LED_DSG6, LOW);
+  digitalWrite(PWR_ALL, LOW);
   digitalWrite(PWR_1, HIGH);
   digitalWrite(PWR_2, HIGH);
   digitalWrite(PWR_3, HIGH);
@@ -549,7 +556,7 @@ void setup() {
   jiggleRelays();
   delay(1000);
   // initialize globals
-  relaysOn(LOW); // switch all power relays on (LOW = on)
+  setPower(ON); // switch all power relays on
   // all defined, ready to read/write from/to serial port
   Serial.begin(serialSpeed);
   while (!Serial) {
@@ -567,88 +574,123 @@ void setup() {
 #define CLICK 20
 
 void jiggleRelays() {
-  relaysOn(LOW);
+  setPower(ON);
   delay(CLICK);
-  relaysOn(HIGH);
+  setPower(OFF);
   delay(222);
-  relaysOn(LOW);
+  setPower(ON);
   delay(CLICK);
-  relaysOn(HIGH);
+  setPower(OFF);
   delay(111);
-  relaysOn(LOW);
+  setPower(ON);
   delay(CLICK);
-  relaysOn(HIGH);
+  setPower(OFF);
   delay(111);
-  relaysOn(LOW);
+  setPower(ON);
   delay(CLICK);
-  relaysOn(HIGH);
+  setPower(OFF);
   delay(222);
-  relaysOn(LOW);
+  setPower(ON);
   delay(CLICK);
-  relaysOn(HIGH);
+  setPower(OFF);
   delay(444);
-  relaysOn(LOW);
+  setPower(ON);
   delay(CLICK);
-  relaysOn(HIGH);
+  setPower(OFF);
   delay(222);
-  relaysOn(LOW);
+  setPower(ON);
   delay(CLICK);
-  relaysOn(HIGH);
+  setPower(OFF);
 }
 
 /*****************************************************************************************
    engage/disengage relays
  *****************************************************************************************/
-void relaysOn (bool onOff) {
-  digitalWrite(PWR_ALL, !onOff);
-  digitalWrite(PWR_1, !onOff);
-  digitalWrite(PWR_2, !onOff);
-  digitalWrite(PWR_3, !onOff);
-  digitalWrite(PWR_4, !onOff);
-  digitalWrite(PWR_5, !onOff);
-  digitalWrite(PWR_6, !onOff);
-  relayLEDsOn(!onOff);
+void setPower(bool setOn) {
+  digitalWrite(PWR_ALL, setOn);
+  digitalWrite(PWR_1, setOn);
+  digitalWrite(PWR_2, setOn);
+  digitalWrite(PWR_3, setOn);
+  digitalWrite(PWR_4, setOn);
+  digitalWrite(PWR_5, setOn);
+  digitalWrite(PWR_6, setOn);
+  relayLEDsOn(setOn);
 }
 
 /*****************************************************************************************
    corresponding LEDs pattern for engage/disengage relays
  *****************************************************************************************/
-void relayLEDsOn(bool onOff) {
-  digitalWrite(LED_1, onOff);
-  digitalWrite(LED_2, onOff);
-  digitalWrite(LED_3, onOff);
-  digitalWrite(LED_4, onOff);
-  digitalWrite(LED_5, onOff);
-  digitalWrite(LED_GO, !onOff);
-  digitalWrite(LED_STOP, !onOff);
-  relayLEDsGreen(onOff);
-  relayLEDsRed(onOff);
+void relayLEDsOn(bool setOn) {
+  digitalWrite(LED_1, !setOn);
+  digitalWrite(LED_2, !setOn);
+  digitalWrite(LED_3, !setOn);
+  digitalWrite(LED_4, !setOn);
+  digitalWrite(LED_5, !setOn);
+  digitalWrite(LED_GO, setOn);
+  digitalWrite(LED_STOP, !setOn);
+  relayLEDsGreen(setOn);
+  relayLEDsRed(!setOn);
 }
 
-void relayLEDsGreen(bool onOff) {
-  digitalWrite(LED_DSG1, onOff);
-  digitalWrite(LED_DSG2, onOff);
-  digitalWrite(LED_DSG3, onOff);
-  digitalWrite(LED_DSG4, onOff);
-  digitalWrite(LED_DSG5, onOff);
-  digitalWrite(LED_DSG6, onOff);
+void relayLEDsGreen(bool setOn) {
+  digitalWrite(LED_DSG1, setOn);
+  digitalWrite(LED_DSG2, setOn);
+  digitalWrite(LED_DSG3, setOn);
+  digitalWrite(LED_DSG4, setOn);
+  digitalWrite(LED_DSG5, setOn);
+  digitalWrite(LED_DSG6, setOn);
 }
 
-void relayLEDsRed(bool onOff) {
-  digitalWrite(LED_DSR1, !onOff);
-  digitalWrite(LED_DSR2, !onOff);
-  digitalWrite(LED_DSR3, !onOff);
-  digitalWrite(LED_DSR4, !onOff);
-  digitalWrite(LED_DSR5, !onOff);
-  digitalWrite(LED_DSR6, !onOff);
+void relayLEDsRed(bool setOn) {
+  digitalWrite(LED_DSR1, setOn);
+  digitalWrite(LED_DSR2, setOn);
+  digitalWrite(LED_DSR3, setOn);
+  digitalWrite(LED_DSR4, setOn);
+  digitalWrite(LED_DSR5, setOn);
+  digitalWrite(LED_DSR6, setOn);
 }
 
 /*****************************************************************************************
    yellow (red & gree) on/off
  *****************************************************************************************/
-void yellowLEDs(bool onOff) {
-  relayLEDsGreen(onOff);
-  relayLEDsRed(!onOff);
+void yellowLEDs(bool setOn) {
+  relayLEDsGreen(setOn);
+  relayLEDsRed(setOn);
+}
+
+/*****************************************************************************************
+   Start/Finish, Go and Stop LEDs
+ *****************************************************************************************/
+void setLED1(bool setOn) {
+  digitalWrite(LED_1, setOn);
+}
+
+void setLED2(bool setOn) {
+  digitalWrite(LED_2, setOn);
+}
+
+void setLED3(bool setOn) {
+  digitalWrite(LED_3, setOn);
+}
+
+void setLED4(bool setOn) {
+  digitalWrite(LED_4, setOn);
+}
+
+void setLED5(bool setOn) {
+  digitalWrite(LED_5, setOn);
+}
+
+void setGO(bool setOn) {
+  digitalWrite(LED_GO, setOn);
+}
+
+void setSTOP(bool setOn) {
+  digitalWrite(LED_STOP, setOn);
+}
+
+void setALL(bool setOn) {
+  digitalWrite(PWR_ALL, setOn);
 }
 
 /*****************************************************************************************
@@ -727,12 +769,7 @@ void loop() {
       // String raceClockTime = output.substring(4, 8); // HH:MM:SS
       if (raceClockState == "RC0") { // Race Clock - Race Setup
         if (race.fromState(RACE_FINISHED)) {
-          relaysOn(HIGH);
-          //          digitalWrite(LED_1, LOW);
-          //          digitalWrite(LED_2, LOW);
-          //          digitalWrite(LED_3, LOW);
-          //          digitalWrite(LED_4, LOW);
-          //          digitalWrite(LED_5, LOW);
+          setPower(OFF);
         }
         race.init();
         falseStart.init();
@@ -740,73 +777,76 @@ void loop() {
         //   race.start(); // misses the first second
       } else if (raceClockState == "RC2") { // Race Clock - Race Finished
         race.finish();
-        digitalWrite(LED_1, LOW);
-        digitalWrite(LED_2, LOW);
-        digitalWrite(LED_3, LOW);
-        digitalWrite(LED_4, LOW);
-        digitalWrite(LED_5, LOW);
+        setLED1(ON);
+        setLED2(ON);
+        setLED3(ON);
+        setLED4(ON);
+        setLED5(ON);
       } else if (raceClockState == "RC3" && !race.isPaused()) { // Race Clock - Race Paused
         race.pause(); // track call immediate, segment end after detection delay
+        yellowLEDs(ON);
       } else if (output == SL_1_ON) {
-        race.setStartingLights(ON);
-        digitalWrite(LED_1, LOW);
+        race.setStartingLights(ON); // set race starting light state with LED1 only
+        setLED1(ON);
       } else if (output == SL_1_OFF) {
-        race.setStartingLights(OFF);
-        digitalWrite(LED_1, HIGH);
+        race.setStartingLights(OFF); // set race starting light state with LED1 only
+        setLED1(OFF);
       } else if (output == SL_2_ON) {
-        digitalWrite(LED_2, LOW);
+        setLED2(ON);
       } else if (output == SL_2_OFF) {
-        digitalWrite(LED_2, HIGH);
+        setLED2(OFF);
       } else if (output == SL_3_ON) {
-        digitalWrite(LED_3, LOW);
+        setLED3(ON);
       } else if (output == SL_3_OFF) {
-        digitalWrite(LED_3, HIGH);
+        setLED3(OFF);
       } else if (output == SL_4_ON) {
-        digitalWrite(LED_4, LOW);
+        setLED4(ON);
       } else if (output == SL_4_OFF) {
-        digitalWrite(LED_4, HIGH);
+        setLED4(OFF);
       } else if (output == SL_5_ON) {
-        digitalWrite(LED_5, LOW);
+        setLED5(ON);
       } else if (output == SL_5_OFF) {
-        digitalWrite(LED_5, HIGH);
+        setLED5(OFF);
       } else if (output == GO_ON) { // race start
         race.start();
-        digitalWrite(LED_GO, LOW);
+        setGO(ON);
+        relayLEDsRed(OFF);
       } else if (output == GO_OFF) { // track call, segment or heat end
         race.pause();
-        digitalWrite(LED_GO, HIGH);
+        setGO(OFF);
       } else if (output == STOP_ON) {
-        digitalWrite(LED_STOP, LOW);
+        setSTOP(ON);
         if (race.isPaused() && race.fromState(RACE_STARTED)) { // blink
-          digitalWrite(LED_1, HIGH);
-          digitalWrite(LED_2, LOW);
-          digitalWrite(LED_3, HIGH);
-          digitalWrite(LED_4, LOW);
-          digitalWrite(LED_5, HIGH);
-          yellowLEDs(HIGH);
+          setLED1(OFF);
+          setLED2(ON);
+          setLED3(OFF);
+          setLED4(ON);
+          setLED5(OFF);
+          yellowLEDs(ON);
         }
       } else if (output == STOP_OFF) {
-        digitalWrite(LED_STOP, HIGH);
+        setSTOP(OFF);
         // flickers when race is continued (track or segment)
         if (race.isPaused() &&
             race.fromState(RACE_STARTED) &&
             race.areStartingLights(OFF)) { // blink
-          digitalWrite(LED_1, LOW);
-          digitalWrite(LED_2, HIGH);
-          digitalWrite(LED_3, LOW);
-          digitalWrite(LED_4, HIGH);
-          digitalWrite(LED_5, LOW);
-          yellowLEDs(LOW);
+          setLED1(ON);
+          setLED2(OFF);
+          setLED3(ON);
+          setLED4(OFF);
+          setLED5(ON);
+          yellowLEDs(OFF);
         }
       } else if (output == PWR_ON) {
-        digitalWrite(PWR_ALL, LOW);
+        setALL(ON);
+        yellowLEDs(ON);
         if (race.isFinished()) {
-          relaysOn(LOW);
+          setPower(ON);
         }
       } else if (output == PWR_OFF) {
-        digitalWrite(PWR_ALL, HIGH);
+        setALL(OFF);
         if (race.isFinished()) {
-          relaysOn(HIGH);
+          setPower(OFF);
         }
       } else if (output == PWR_1_ON) {
         lane1.powerOn();
