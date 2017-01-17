@@ -19,6 +19,7 @@
 
    Revision History
    __________ ____________________ _______________________________________________________
+   2017-01-17 Gabriel Inäbnit      Interrupt to Lane mapping also configured with array
    2017-01-16 Gabriel Inäbnit      Relays NC, r/g/y racer's stand lights, lane mappings
    2016-10-31 Gabriel Inäbnit      Race Clock - Race Finished status (RC2) PCLC v5.40
    2016-10-28 Gabriel Inäbnit      Start/Finish lights on/off/blink depending race status
@@ -39,6 +40,37 @@
  *****************************************************************************************/
 
 /*****************************************************************************************
+   Global variables
+ *****************************************************************************************/
+const long serialSpeed = 19200;
+const long serial3Speed = 19200;
+const byte laneToInterrupMapping[] = { 18, 19, 20, 21,  3,  2 };
+const byte laneToRelayMapping[]    = { 12, 28, 11,  9,  7,  5 };
+const byte laneToGreenMapping[]    = { 44, 46, 38, 34, 39, 35 };
+const byte laneToRedMapping[]      = { 41, 42, 40, 36, 32, 37 };
+const char lapTime[][7] =
+{
+  "[SF01$",
+  "[SF02$",
+  "[SF03$",
+  "[SF04$",
+  "[SF05$",
+  "[SF06$"
+};
+
+const unsigned long delayMillis[] =
+{ // index
+  0L, // 0
+  1000L, // 1
+  2000L, // 2
+  3000L, // 3
+  4000L, // 4
+  5000L, // 5
+  6000L, // 6
+  7000L  // 7
+};
+
+/*****************************************************************************************
    Symbol Definitions
  *****************************************************************************************/
 #define ON HIGH
@@ -48,12 +80,12 @@
    Pin Naming
  *****************************************************************************************/
 // lane to interrup pin mapping
-#define LANE_1 2
-#define LANE_2 3
-#define LANE_3 21
-#define LANE_4 20
-#define LANE_5 19
-#define LANE_6 18
+#define LANE_1 laneToInterrupMapping[0]
+#define LANE_2 laneToInterrupMapping[1]
+#define LANE_3 laneToInterrupMapping[2]
+#define LANE_4 laneToInterrupMapping[3]
+#define LANE_5 laneToInterrupMapping[4]
+#define LANE_6 laneToInterrupMapping[5]
 
 #define LED_1 23
 #define LED_2 25
@@ -127,36 +159,6 @@
 #define PWR_5_OFF "PW050"
 #define PWR_6_ON  "PW061"
 #define PWR_6_OFF "PW060"
-
-/*****************************************************************************************
-   Global variables
- *****************************************************************************************/
-const long serialSpeed = 19200;
-const long serial3Speed = 19200;
-const byte laneToRelayMapping[] = { 12, 28, 11,  9,  7,  5 };
-const byte laneToGreenMapping[] = { 44, 46, 38, 34, 39, 35 };
-const byte laneToRedMapping[]   = { 41, 42, 40, 36, 32, 37 };
-const char lapTime[][7] =
-{
-  "[SF01$",
-  "[SF02$",
-  "[SF03$",
-  "[SF04$",
-  "[SF05$",
-  "[SF06$"
-};
-
-const unsigned long delayMillis[] =
-{ // index
-  0L, // 0
-  1000L, // 1
-  2000L, // 2
-  3000L, // 3
-  4000L, // 4
-  5000L, // 5
-  6000L, // 6
-  7000L  // 7
-};
 
 /*****************************************************************************************
    Class Race
@@ -375,8 +377,8 @@ class Lane {
     }
     void powerOff() {
       digitalWrite(pin, LOW);
-        digitalWrite(red, HIGH);
-        digitalWrite(green, LOW);
+      digitalWrite(red, HIGH);
+      digitalWrite(green, LOW);
     }
     bool isFalseStart() {
       return falseStart;
@@ -429,9 +431,9 @@ class Button {
 /*****************************************************************************************
    Class Button instantiations
  *****************************************************************************************/
-Button raceStart("[BT01]", 47, 10);   // pin 5 (RJ11 1)
+Button raceStart("[BT01]",   47, 10); // pin 5 (RJ11 1)
 Button raceRestart("[BT02]", 45, 10); // pin 6 (RJ11 2)
-Button racePause("[BT03]", 43, 10);   // pin 7 (RJ11 3, RJ11 4 = GND)
+Button racePause("[BT03]",   43, 10); // pin 7 (RJ11 3, RJ11 4 = GND)
 //Button raceStartPauseRestart("[BT04]", 43, 100);
 //Button powerOff("[BT05]", 48);
 //Button powerOn("[BT06]", 49);
