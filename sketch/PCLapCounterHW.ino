@@ -373,6 +373,9 @@ class Lane {
         digitalWrite(pin, HIGH);
         digitalWrite(red, LOW);
         digitalWrite(green, HIGH);
+      } else {
+        digitalWrite(red, HIGH);
+        digitalWrite(green, HIGH);
       }
     }
     void powerOff() {
