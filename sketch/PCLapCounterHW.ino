@@ -19,6 +19,7 @@
 
    Revision History
    __________ ____________________ _______________________________________________________
+   2017-01-21 Gabriel Inäbnit      Lane detection blackout period added
    2017-01-17 Gabriel Inäbnit      Interrupt to Lane mapping also configured with array
    2017-01-16 Gabriel Inäbnit      Relays NC, r/g/y racer's stand lights, lane mappings
    2016-10-31 Gabriel Inäbnit      Race Clock - Race Finished status (RC2) PCLC v5.40
@@ -42,8 +43,8 @@
 /*****************************************************************************************
    Global variables
  *****************************************************************************************/
-const long serialSpeed = 19200;
-const long serial3Speed = 19200;
+const long serialSpeed = 57600; // 19200;
+const long serial3Speed = 115200; // bluetooth
 const byte laneToInterrupMapping[] = { 18, 19, 20, 21,  3,  2 };
 const byte laneToRelayMapping[]    = { 12, 28, 11,  9,  7,  5 };
 const byte laneToGreenMapping[]    = { 44, 46, 38, 34, 39, 35 };
@@ -69,6 +70,8 @@ const unsigned long delayMillis[] =
   6000L, // 6
   7000L  // 7
 };
+
+const unsigned long laneDetectionBlackoutPeriod = 1000L;
 
 /*****************************************************************************************
    Symbol Definitions
@@ -316,6 +319,7 @@ class Lane {
   protected:
     volatile unsigned long start;
     volatile unsigned long finish;
+    volatile unsigned long now;
     volatile long count;
     volatile bool reported;
     byte lane;
@@ -336,8 +340,12 @@ class Lane {
       falseStart = false;
     }
     void lapDetected() { // called by ISR, short and sweet
+      now = millis();
+      if ((now - finish) < laneDetectionBlackoutPeriod) {
+        return;
+      }
       start = finish;
-      finish = millis();
+      finish = now;
       count++;
       reported = false;
     }
