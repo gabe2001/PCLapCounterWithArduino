@@ -45,6 +45,7 @@
  *****************************************************************************************/
 const long serialSpeed = 57600; // 19200;
 const long serial3Speed = 115200; // bluetooth
+const unsigned long laneDetectionBlackoutPeriod = 500L;
 const byte laneToInterrupMapping[] = { 18, 19, 20, 21,  3,  2 };
 const byte laneToRelayMapping[]    = { 12, 28, 11,  9,  7,  5 };
 const byte laneToGreenMapping[]    = { 44, 46, 38, 34, 39, 35 };
@@ -70,8 +71,6 @@ const unsigned long delayMillis[] =
   6000L, // 6
   7000L  // 7
 };
-
-const unsigned long laneDetectionBlackoutPeriod = 1000L;
 
 /*****************************************************************************************
    Symbol Definitions
