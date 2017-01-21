@@ -1,7 +1,7 @@
 /*****************************************************************************************
    Slotcar Race Controller for PCLapCounter Software
 
-   (C) Copyright 2016 el.Dude - www.eldude.nl
+   (C) Copyright 2016-2017 el.Dude - www.eldude.nl
 
    Arduino MEGA 2560 based slotcar race controller. Capture start/finish signals,
    controls the power relays as well as any signal LEDs and manages external buttons.
@@ -13,11 +13,15 @@
    Date  : 2016-10-14
 
    TODO:
+   - disable track call button when race is not active (or change button behaviour)
    - aborting start/restart is bogus
    - void startLights(byte pattern): get them patterns figured out
 
    Revision History
    __________ ____________________ _______________________________________________________
+   2017-01-21 Gabriel Inäbnit      Lane detection blackout period added
+   2017-01-17 Gabriel Inäbnit      Interrupt to Lane mapping also configured with array
+   2017-01-16 Gabriel Inäbnit      Relays NC, r/g/y racer's stand lights, lane mappings
    2016-10-31 Gabriel Inäbnit      Race Clock - Race Finished status (RC2) PCLC v5.40
    2016-10-28 Gabriel Inäbnit      Start/Finish lights on/off/blink depending race status
    2016-10-25 Gabriel Inäbnit      Removed false start init button - no longer needed
@@ -29,15 +33,121 @@
  *****************************************************************************************/
 
 /*****************************************************************************************
-   Symbol definitions
+   Do not use pins:
+   Serial1: 18 & 19 - used for interrupts
+   Serial2: 16 & 17
+   Serial3: 14 & 15
+   BuiltIn: 13 - try to avoid it
  *****************************************************************************************/
-#define LANE_1 2
-#define LANE_2 3
-#define LANE_3 21
-#define LANE_4 20
-#define LANE_5 19
-#define LANE_6 18
 
+/*****************************************************************************************
+   Global variables
+ *****************************************************************************************/
+const long serialSpeed = 57600; // 19200;
+const long serial3Speed = 115200; // bluetooth
+const unsigned long laneDetectionBlackoutPeriod = 500L;
+const byte laneToInterrupMapping[] = { 18, 19, 20, 21,  3,  2 };
+const byte laneToRelayMapping[]    = { 12, 28, 11,  9,  7,  5 };
+const byte laneToGreenMapping[]    = { 44, 46, 38, 34, 39, 35 };
+const byte laneToRedMapping[]      = { 41, 42, 40, 36, 32, 37 };
+const char lapTime[][7] =
+{
+  "[SF01$",
+  "[SF02$",
+  "[SF03$",
+  "[SF04$",
+  "[SF05$",
+  "[SF06$"
+};
+
+const unsigned long delayMillis[] =
+{ // index
+  0L, // 0
+  1000L, // 1
+  2000L, // 2
+  3000L, // 3
+  4000L, // 4
+  5000L, // 5
+  6000L, // 6
+  7000L  // 7
+};
+
+/*****************************************************************************************
+   Symbol Definitions
+ *****************************************************************************************/
+#define ON HIGH
+#define OFF LOW
+
+/*****************************************************************************************
+   Arduono Button Press Messages
+ *****************************************************************************************/
+#define BUTTON_RACE_START         "[BT01]"
+#define BUTTON_RACE_RESTART       "[BT02]"
+#define BUTTON_RACE_PAUSE         "[BT03]"
+#define BUTTON_RACE_NEXT          "[BT04]"
+#define BUTTON_POWER_OFF          "[BT05]"
+#define BUTTON_POWER_ON           "[BT06]"
+#define BUTTON_END_OF_RACE        "[BT07]"
+#define BUTTON_TOGGLE_POWER       "[BT08]"
+#define BUTTON_TOGGLE_YELLOW_FLAG "[BT09]"
+#define BUTTON_STOP_AND_GO_LANE1  "[SG01]"
+#define BUTTON_STOP_AND_GO_LANE2  "[SG02]"
+#define BUTTON_STOP_AND_GO_LANE3  "[SG03]"
+#define BUTTON_STOP_AND_GO_LANE4  "[SG04]"
+#define BUTTON_STOP_AND_GO_LANE5  "[SG05]"
+#define BUTTON_STOP_AND_GO_LANE6  "[SG06]"
+
+/*****************************************************************************************
+   Pin Naming
+ *****************************************************************************************/
+// lane to interrup pin mapping
+#define LANE_1 laneToInterrupMapping[0]
+#define LANE_2 laneToInterrupMapping[1]
+#define LANE_3 laneToInterrupMapping[2]
+#define LANE_4 laneToInterrupMapping[3]
+#define LANE_5 laneToInterrupMapping[4]
+#define LANE_6 laneToInterrupMapping[5]
+
+#define LED_1 23
+#define LED_2 25
+#define LED_3 27
+#define LED_4 29
+#define LED_5 31
+
+#define LED_DSR1 41
+#define LED_DSG1 44
+#define LED_DSR2 42
+#define LED_DSG2 46
+#define LED_DSR3 40
+#define LED_DSG3 38
+#define LED_DSR4 36
+#define LED_DSG4 34
+#define LED_DSR5 32
+#define LED_DSG5 39
+#define LED_DSR6 37
+#define LED_DSG6 35
+
+#define LED_STOP 22
+#define LED_CAUTION 24
+#define LED_GO 26
+
+// PWR_x: x = lane
+#define PWR_ALL 30
+#define PWR_1   laneToRelayMapping[0] // 12
+#define PWR_2   laneToRelayMapping[1] // 28
+#define PWR_3   laneToRelayMapping[2] // 11
+#define PWR_4   laneToRelayMapping[3] //  9
+#define PWR_5   laneToRelayMapping[4] //  7
+#define PWR_6   laneToRelayMapping[5] //  5
+
+#define FSbit_0 10
+#define FSbit_1 8
+#define FSbit_2 6
+#define FSbit_3 4
+
+/*****************************************************************************************
+   PC Lap Counter Messages
+ *****************************************************************************************/
 #define SL_1_ON  "SL011"
 #define SL_1_OFF "SL010"
 #define SL_2_ON  "SL021"
@@ -71,56 +181,6 @@
 #define PWR_6_ON  "PW061"
 #define PWR_6_OFF "PW060"
 
-#define LED_1 5
-#define LED_2 6
-#define LED_3 7
-#define LED_4 8
-#define LED_5 9
-
-#define LED_GO 10
-#define LED_STOP 11
-#define LED_CAUTION 12
-
-#define PWR_ALL 30
-#define PWR_1   31
-#define PWR_2   32
-#define PWR_3   33
-#define PWR_4   34
-#define PWR_5   35
-#define PWR_6   36
-
-#define FS_0 22
-#define FS_1 23
-#define FS_2 24
-#define FS_3 25
-
-/*****************************************************************************************
-   Global variables
- *****************************************************************************************/
-const long serialSpeed = 57600;
-const long serial3Speed = 115200;
-const char lapTime[][7] =
-{
-  "[SF01$",
-  "[SF02$",
-  "[SF03$",
-  "[SF04$",
-  "[SF05$",
-  "[SF06$"
-};
-
-const unsigned long delayMillis[] =
-{ // index
-  0L, // 0
-  1000L, // 1
-  2000L, // 2
-  3000L, // 3
-  4000L, // 4
-  5000L, // 5
-  6000L, // 6
-  7000L  // 7
-};
-
 /*****************************************************************************************
    Class Race
  *****************************************************************************************/
@@ -132,8 +192,6 @@ const unsigned long delayMillis[] =
 #define CLOCK_ELAPSED_TIME 'E'
 #define CLOCK_SEGMENT_REMAINING_TIME 'S'
 #define LAPS_REMAINING 'L'
-#define ON true
-#define OFF false
 
 class Race {
   protected:
@@ -259,11 +317,11 @@ class Race {
       previousState = state;
       state = RACE_FINISHED;
     }
-    void setStartingLights(bool onOff) {
-      startingLights = onOff;
+    void setStartingLights(bool setOn) {
+      startingLights = setOn;
     }
-    bool areStartingLights(bool onOff) {
-      return startingLights == onOff;
+    bool areStartingLights(bool setOn) {
+      return startingLights == setOn;
     }
 };
 
@@ -279,10 +337,13 @@ class Lane {
   protected:
     volatile unsigned long start;
     volatile unsigned long finish;
+    volatile unsigned long now;
     volatile long count;
     volatile bool reported;
     byte lane;
     byte pin;
+    byte green;
+    byte red;
     bool falseStart;
   public:
     Lane(byte setLane) {
@@ -290,13 +351,19 @@ class Lane {
       finish = 0L;
       count = -1L;
       lane = setLane - 1;
-      pin = setLane + 30;
+      pin = laneToRelayMapping[lane];
+      green = laneToGreenMapping[lane];
+      red = laneToRedMapping[lane];
       reported = true;
       falseStart = false;
     }
     void lapDetected() { // called by ISR, short and sweet
+      now = millis();
+      if ((now - finish) < laneDetectionBlackoutPeriod) {
+        return;
+      }
       start = finish;
-      finish = millis();
+      finish = now;
       count++;
       reported = false;
     }
@@ -329,11 +396,18 @@ class Lane {
     }
     void powerOn() {
       if (!falseStart) {
-        digitalWrite(pin, LOW);
+        digitalWrite(pin, HIGH);
+        digitalWrite(red, LOW);
+        digitalWrite(green, HIGH);
+      } else {
+        digitalWrite(red, HIGH);
+        digitalWrite(green, HIGH);
       }
     }
     void powerOff() {
-      digitalWrite(pin, HIGH);
+      digitalWrite(pin, LOW);
+      digitalWrite(red, HIGH);
+      digitalWrite(green, LOW);
     }
     bool isFalseStart() {
       return falseStart;
@@ -357,6 +431,7 @@ class Button {
   protected:
     String button;
     byte pin;
+    unsigned int sleep;
     bool reported;
     bool pressed;
     void reportButton() {
@@ -364,9 +439,10 @@ class Button {
       reported = true;
     }
   public:
-    Button(String setButton, byte setPin) {
+    Button(String setButton, byte setPin, unsigned int setSleep) {
       button = setButton;
       pin = setPin;
+      sleep = setSleep;
       reported = false;
       pressed = false;
       pinMode(pin, INPUT_PULLUP);
@@ -375,6 +451,7 @@ class Button {
       pressed = !digitalRead(pin);
       if (!reported && pressed) {
         reportButton();
+        //delay(sleep);
       }
       reported = pressed;
     }
@@ -383,21 +460,21 @@ class Button {
 /*****************************************************************************************
    Class Button instantiations
  *****************************************************************************************/
-Button startRace("[BT01]", 44);
-Button restartRace("[BT02]", 48);
-Button pauseRace("[BT03]", 43);
-//Button startPauseRestartRace("[BT04]", 44);
-//Button powerOff("[BT05]", 45);
-//Button powerOn("[BT06]", 46);
-//Button endOfRace("[BT07]", 47);
-//Button togglePower("[BT08]", 48);
-//Button toggleYelloFlag("[BT09]", 49);
-//Button stopAndGoLane1("[SG01]", 22);
-//Button stopAndGoLane2("[SG02]", 23);
-//Button stopAndGoLane3("[SG03]", 24);
-//Button stopAndGoLane4("[SG04]", 25);
-//Button stopAndGoLane5("[SG05]", 26);
-//Button stopAndGoLane6("[SG06]", 27);
+Button raceStart(BUTTON_RACE_START,   47, 10); // pin 5 (RJ11 1)
+Button raceRestart(BUTTON_RACE_RESTART, 45, 10); // pin 6 (RJ11 2)
+Button racePause(BUTTON_RACE_PAUSE,   43, 10); // pin 7 (RJ11 3, RJ11 4 = GND)
+//Button raceStartPauseRestart(BUTTON_RACE_NEXT, 43, 100);
+//Button powerOff(BUTTON_POWER_OFF, 48);
+//Button powerOn(BUTTON_POWER_ON, 49);
+//Button endOfRace(BUTTON_END_OF_RACE, 50);
+//Button togglePower(BUTTON_TOGGLE_POWER, 51);
+//Button toggleYelloFlag(BUTTON_TOGGLE_YELLOW_FLAG, 52);
+//Button stopAndGoLane1(BUTTON_STOP_AND_GO_LANE1);
+//Button stopAndGoLane2(BUTTON_STOP_AND_GO_LANE2, 23);
+//Button stopAndGoLane3(BUTTON_STOP_AND_GO_LANE3", 24);
+//Button stopAndGoLane4(BUTTON_STOP_AND_GO_LANE4, 25);
+//Button stopAndGoLane5(BUTTON_STOP_AND_GO_LANE5, 26);
+//Button stopAndGoLane6(BUTTON_STOP_AND_GO_LANE6, 27);
 
 /*****************************************************************************************
    Class FalseStart - HW solution setup false start enable/disable, detection and penalty
@@ -419,10 +496,10 @@ class FalseStart {
     }
     void init() {
       // read pins of 4-bit encoder
-      byte mode = !digitalRead(FS_3) << 3 |
-                  !digitalRead(FS_2) << 2 |
-                  !digitalRead(FS_1) << 1 |
-                  !digitalRead(FS_0);
+      byte mode = !digitalRead(FSbit_3) << 3 |
+                  !digitalRead(FSbit_2) << 2 |
+                  !digitalRead(FSbit_1) << 1 |
+                  !digitalRead(FSbit_0);
       race.initFalseStart(mode);
       reset();
     }
@@ -445,10 +522,10 @@ void setup() {
   pinMode(LANE_5, INPUT_PULLUP);
   pinMode(LANE_6, INPUT_PULLUP);
   // input pins
-  pinMode(FS_0, INPUT_PULLUP);
-  pinMode(FS_1, INPUT_PULLUP);
-  pinMode(FS_2, INPUT_PULLUP);
-  pinMode(FS_3, INPUT_PULLUP);
+  pinMode(FSbit_0, INPUT_PULLUP);
+  pinMode(FSbit_1, INPUT_PULLUP);
+  pinMode(FSbit_2, INPUT_PULLUP);
+  pinMode(FSbit_3, INPUT_PULLUP);
   // output pins
   pinMode(LED_1, OUTPUT);
   pinMode(LED_2, OUTPUT);
@@ -465,16 +542,41 @@ void setup() {
   pinMode(PWR_4, OUTPUT);
   pinMode(PWR_5, OUTPUT);
   pinMode(PWR_6, OUTPUT);
-  // turn all LEDs off (HIGH = off)
-  digitalWrite(LED_1, HIGH);
-  digitalWrite(LED_2, HIGH);
-  digitalWrite(LED_3, HIGH);
-  digitalWrite(LED_4, HIGH);
-  digitalWrite(LED_5, HIGH);
-  digitalWrite(LED_GO, HIGH);
-  digitalWrite(LED_STOP, HIGH);
-  //  digitalWrite(LED_CAUTION, HIGH);
-  digitalWrite(PWR_ALL, HIGH);
+  // plugin box
+  pinMode(LED_DSR1, OUTPUT);
+  pinMode(LED_DSR2, OUTPUT);
+  pinMode(LED_DSR3, OUTPUT);
+  pinMode(LED_DSR4, OUTPUT);
+  pinMode(LED_DSR5, OUTPUT);
+  pinMode(LED_DSR6, OUTPUT);
+  pinMode(LED_DSG1, OUTPUT);
+  pinMode(LED_DSG2, OUTPUT);
+  pinMode(LED_DSG3, OUTPUT);
+  pinMode(LED_DSG4, OUTPUT);
+  pinMode(LED_DSG5, OUTPUT);
+  pinMode(LED_DSG6, OUTPUT);
+  // turn all LEDs off
+  digitalWrite(LED_1, LOW);
+  digitalWrite(LED_2, LOW);
+  digitalWrite(LED_3, LOW);
+  digitalWrite(LED_4, LOW);
+  digitalWrite(LED_5, LOW);
+  digitalWrite(LED_GO, LOW);
+  digitalWrite(LED_STOP, LOW);
+  //  digitalWrite(LED_CAUTION, LOW);
+  digitalWrite(LED_DSR1, LOW);
+  digitalWrite(LED_DSR2, LOW);
+  digitalWrite(LED_DSR3, LOW);
+  digitalWrite(LED_DSR4, LOW);
+  digitalWrite(LED_DSR5, LOW);
+  digitalWrite(LED_DSR6, LOW);
+  digitalWrite(LED_DSG1, LOW);
+  digitalWrite(LED_DSG2, LOW);
+  digitalWrite(LED_DSG3, LOW);
+  digitalWrite(LED_DSG4, LOW);
+  digitalWrite(LED_DSG5, LOW);
+  digitalWrite(LED_DSG6, LOW);
+  digitalWrite(PWR_ALL, LOW);
   digitalWrite(PWR_1, HIGH);
   digitalWrite(PWR_2, HIGH);
   digitalWrite(PWR_3, HIGH);
@@ -485,7 +587,7 @@ void setup() {
   jiggleRelays();
   delay(1000);
   // initialize globals
-  relaysOn(LOW); // switch all power relays on (LOW = on)
+  setPower(ON); // switch all power relays on
   // all defined, ready to read/write from/to serial port
   Serial.begin(serialSpeed);
   while (!Serial) {
@@ -497,54 +599,133 @@ void setup() {
   }
 }
 
-#define CLICK 10
+/*****************************************************************************************
+   relays initialization - shake the dust off the contacts
+ *****************************************************************************************/
+#define CLICK 20
 
 void jiggleRelays() {
-  relaysOn(LOW);
+  setPower(ON);
   delay(CLICK);
-  relaysOn(HIGH);
+  setPower(OFF);
   delay(222);
-  relaysOn(LOW);
+  setPower(ON);
   delay(CLICK);
-  relaysOn(HIGH);
+  setPower(OFF);
   delay(111);
-  relaysOn(LOW);
+  setPower(ON);
   delay(CLICK);
-  relaysOn(HIGH);
+  setPower(OFF);
   delay(111);
-  relaysOn(LOW);
+  setPower(ON);
   delay(CLICK);
-  relaysOn(HIGH);
+  setPower(OFF);
   delay(222);
-  relaysOn(LOW);
+  setPower(ON);
   delay(CLICK);
-  relaysOn(HIGH);
+  setPower(OFF);
   delay(444);
-  relaysOn(LOW);
+  setPower(ON);
   delay(CLICK);
-  relaysOn(HIGH);
+  setPower(OFF);
   delay(222);
-  relaysOn(LOW);
+  setPower(ON);
   delay(CLICK);
-  relaysOn(HIGH);
+  setPower(OFF);
 }
 
-void relaysOn (bool onOff) {
-  digitalWrite(PWR_1, onOff);
-  digitalWrite(PWR_2, onOff);
-  digitalWrite(PWR_3, onOff);
-  digitalWrite(PWR_4, onOff);
-  digitalWrite(PWR_5, onOff);
-  digitalWrite(PWR_6, onOff);
-  digitalWrite(LED_1, !onOff);
-  digitalWrite(LED_2, !onOff);
-  digitalWrite(LED_3, !onOff);
-  digitalWrite(LED_4, !onOff);
-  digitalWrite(LED_5, !onOff);
-  digitalWrite(LED_GO, onOff);
-  digitalWrite(LED_STOP, !onOff);
+/*****************************************************************************************
+   engage/disengage relays
+ *****************************************************************************************/
+void setPower(bool setOn) {
+  digitalWrite(PWR_ALL, setOn);
+  digitalWrite(PWR_1, setOn);
+  digitalWrite(PWR_2, setOn);
+  digitalWrite(PWR_3, setOn);
+  digitalWrite(PWR_4, setOn);
+  digitalWrite(PWR_5, setOn);
+  digitalWrite(PWR_6, setOn);
+  relayLEDsOn(setOn);
 }
 
+/*****************************************************************************************
+   corresponding LEDs pattern for engage/disengage relays
+ *****************************************************************************************/
+void relayLEDsOn(bool setOn) {
+  digitalWrite(LED_1, !setOn);
+  digitalWrite(LED_2, !setOn);
+  digitalWrite(LED_3, !setOn);
+  digitalWrite(LED_4, !setOn);
+  digitalWrite(LED_5, !setOn);
+  digitalWrite(LED_GO, setOn);
+  digitalWrite(LED_STOP, !setOn);
+  relayLEDsGreen(setOn);
+  relayLEDsRed(!setOn);
+}
+
+void relayLEDsGreen(bool setOn) {
+  digitalWrite(LED_DSG1, setOn);
+  digitalWrite(LED_DSG2, setOn);
+  digitalWrite(LED_DSG3, setOn);
+  digitalWrite(LED_DSG4, setOn);
+  digitalWrite(LED_DSG5, setOn);
+  digitalWrite(LED_DSG6, setOn);
+}
+
+void relayLEDsRed(bool setOn) {
+  digitalWrite(LED_DSR1, setOn);
+  digitalWrite(LED_DSR2, setOn);
+  digitalWrite(LED_DSR3, setOn);
+  digitalWrite(LED_DSR4, setOn);
+  digitalWrite(LED_DSR5, setOn);
+  digitalWrite(LED_DSR6, setOn);
+}
+
+/*****************************************************************************************
+   yellow (red & gree) on/off
+ *****************************************************************************************/
+void yellowLEDs(bool setOn) {
+  relayLEDsGreen(setOn);
+  relayLEDsRed(setOn);
+}
+
+/*****************************************************************************************
+   Start/Finish, Go and Stop LEDs
+ *****************************************************************************************/
+void setLED1(bool setOn) {
+  digitalWrite(LED_1, setOn);
+}
+
+void setLED2(bool setOn) {
+  digitalWrite(LED_2, setOn);
+}
+
+void setLED3(bool setOn) {
+  digitalWrite(LED_3, setOn);
+}
+
+void setLED4(bool setOn) {
+  digitalWrite(LED_4, setOn);
+}
+
+void setLED5(bool setOn) {
+  digitalWrite(LED_5, setOn);
+}
+
+void setGO(bool setOn) {
+  digitalWrite(LED_GO, setOn);
+}
+
+void setSTOP(bool setOn) {
+  digitalWrite(LED_STOP, setOn);
+}
+
+void setALL(bool setOn) {
+  digitalWrite(PWR_ALL, setOn);
+}
+
+/*****************************************************************************************
+   start light pattern switcher
 #define OOOOI  1
 #define OOOIO  2
 #define OOIOO  4
@@ -557,7 +738,11 @@ void startLights(byte pattern) {
   digitalWrite(LED_4, pattern & OIOOO);
   digitalWrite(LED_5, pattern & IOOOO);
 }
+ *****************************************************************************************/
 
+/*****************************************************************************************
+   enable interrupts
+ *****************************************************************************************/
 void attachAllInterrupts() {
   attachInterrupt(digitalPinToInterrupt(LANE_1), lapDetected1, RISING);
   attachInterrupt(digitalPinToInterrupt(LANE_2), lapDetected2, RISING);
@@ -567,6 +752,9 @@ void attachAllInterrupts() {
   attachInterrupt(digitalPinToInterrupt(LANE_6), lapDetected6, RISING);
 }
 
+/*****************************************************************************************
+   disable interrupts
+ *****************************************************************************************/
 void detachAllInterrupts() {
   detachInterrupt(digitalPinToInterrupt(LANE_1));
   detachInterrupt(digitalPinToInterrupt(LANE_2));
@@ -612,12 +800,7 @@ void loop() {
       // String raceClockTime = output.substring(4, 8); // HH:MM:SS
       if (raceClockState == "RC0") { // Race Clock - Race Setup
         if (race.fromState(RACE_FINISHED)) {
-          relaysOn(HIGH);
-          //          digitalWrite(LED_1, LOW);
-          //          digitalWrite(LED_2, LOW);
-          //          digitalWrite(LED_3, LOW);
-          //          digitalWrite(LED_4, LOW);
-          //          digitalWrite(LED_5, LOW);
+          setPower(OFF);
         }
         race.init();
         falseStart.init();
@@ -625,71 +808,76 @@ void loop() {
         //   race.start(); // misses the first second
       } else if (raceClockState == "RC2") { // Race Clock - Race Finished
         race.finish();
-        digitalWrite(LED_1, LOW);
-        digitalWrite(LED_2, LOW);
-        digitalWrite(LED_3, LOW);
-        digitalWrite(LED_4, LOW);
-        digitalWrite(LED_5, LOW);
+        setLED1(ON);
+        setLED2(ON);
+        setLED3(ON);
+        setLED4(ON);
+        setLED5(ON);
       } else if (raceClockState == "RC3" && !race.isPaused()) { // Race Clock - Race Paused
         race.pause(); // track call immediate, segment end after detection delay
+        yellowLEDs(ON);
       } else if (output == SL_1_ON) {
-        race.setStartingLights(ON);
-        digitalWrite(LED_1, LOW);
+        race.setStartingLights(ON); // set race starting light state with LED1 only
+        setLED1(ON);
       } else if (output == SL_1_OFF) {
-        race.setStartingLights(OFF);
-        digitalWrite(LED_1, HIGH);
+        race.setStartingLights(OFF); // set race starting light state with LED1 only
+        setLED1(OFF);
       } else if (output == SL_2_ON) {
-        digitalWrite(LED_2, LOW);
+        setLED2(ON);
       } else if (output == SL_2_OFF) {
-        digitalWrite(LED_2, HIGH);
+        setLED2(OFF);
       } else if (output == SL_3_ON) {
-        digitalWrite(LED_3, LOW);
+        setLED3(ON);
       } else if (output == SL_3_OFF) {
-        digitalWrite(LED_3, HIGH);
+        setLED3(OFF);
       } else if (output == SL_4_ON) {
-        digitalWrite(LED_4, LOW);
+        setLED4(ON);
       } else if (output == SL_4_OFF) {
-        digitalWrite(LED_4, HIGH);
+        setLED4(OFF);
       } else if (output == SL_5_ON) {
-        digitalWrite(LED_5, LOW);
+        setLED5(ON);
       } else if (output == SL_5_OFF) {
-        digitalWrite(LED_5, HIGH);
+        setLED5(OFF);
       } else if (output == GO_ON) { // race start
         race.start();
-        digitalWrite(LED_GO, LOW);
+        setGO(ON);
+        relayLEDsRed(OFF);
       } else if (output == GO_OFF) { // track call, segment or heat end
         race.pause();
-        digitalWrite(LED_GO, HIGH);
+        setGO(OFF);
       } else if (output == STOP_ON) {
-        digitalWrite(LED_STOP, LOW);
+        setSTOP(ON);
         if (race.isPaused() && race.fromState(RACE_STARTED)) { // blink
-          digitalWrite(LED_1, HIGH);
-          digitalWrite(LED_2, LOW);
-          digitalWrite(LED_3, HIGH);
-          digitalWrite(LED_4, LOW);
-          digitalWrite(LED_5, HIGH);
+          setLED1(OFF);
+          setLED2(ON);
+          setLED3(OFF);
+          setLED4(ON);
+          setLED5(OFF);
+          yellowLEDs(ON);
         }
       } else if (output == STOP_OFF) {
-        digitalWrite(LED_STOP, HIGH);
+        setSTOP(OFF);
         // flickers when race is continued (track or segment)
         if (race.isPaused() &&
             race.fromState(RACE_STARTED) &&
             race.areStartingLights(OFF)) { // blink
-          digitalWrite(LED_1, LOW);
-          digitalWrite(LED_2, HIGH);
-          digitalWrite(LED_3, LOW);
-          digitalWrite(LED_4, HIGH);
-          digitalWrite(LED_5, LOW);
+          setLED1(ON);
+          setLED2(OFF);
+          setLED3(ON);
+          setLED4(OFF);
+          setLED5(ON);
+          yellowLEDs(OFF);
         }
       } else if (output == PWR_ON) {
-        digitalWrite(PWR_ALL, LOW);
+        setALL(ON);
+        yellowLEDs(ON);
         if (race.isFinished()) {
-          relaysOn(LOW);
+          setPower(ON);
         }
       } else if (output == PWR_OFF) {
-        digitalWrite(PWR_ALL, HIGH);
+        setALL(OFF);
         if (race.isFinished()) {
-          relaysOn(HIGH);
+          setPower(OFF);
         }
       } else if (output == PWR_1_ON) {
         lane1.powerOn();
@@ -728,22 +916,10 @@ void loop() {
   lane5.reportLap();
   lane6.reportLap();
   /** any buttons pressed */
-  startRace.isButtonPressed();
-  restartRace.isButtonPressed();
-  pauseRace.isButtonPressed();
-  //  startPauseRestartRace.isButtonPressed();
-  //  powerOff.isButtonPressed();
-  //  powerOn.isButtonPressed();
-  //  endOfRace.isButtonPressed();
-  //  togglePower.isButtonPressed();
-  //  toggleYelloFlag.isButtonPressed();
-  //  stopAndGoLane1.isButtonPressed();
-  //  stopAndGoLane2.isButtonPressed();
-  //  stopAndGoLane3.isButtonPressed();
-  //  stopAndGoLane4.isButtonPressed();
-  //  stopAndGoLane5.isButtonPressed();
-  //  stopAndGoLane6.isButtonPressed();
-  delay(3);
+  raceStart.isButtonPressed();
+  raceRestart.isButtonPressed();
+  racePause.isButtonPressed();
+  //delay(3);
   attachAllInterrupts();
 }
 
