@@ -79,6 +79,25 @@ const unsigned long delayMillis[] =
 #define OFF LOW
 
 /*****************************************************************************************
+   Arduono Button Press Messages
+ *****************************************************************************************/
+#define BUTTON_RACE_START         "[BT01]"
+#define BUTTON_RACE_RESTART       "[BT02]"
+#define BUTTON_RACE_PAUSE         "[BT03]"
+#define BUTTON_RACE_NEXT          "[BT04]"
+#define BUTTON_POWER_OFF          "[BT05]"
+#define BUTTON_POWER_ON           "[BT06]"
+#define BUTTON_END_OF_RACE        "[BT07]"
+#define BUTTON_TOGGLE_POWER       "[BT08]"
+#define BUTTON_TOGGLE_YELLOW_FLAG "[BT09]"
+#define BUTTON_STOP_AND_GO_LANE1  "[SG01]"
+#define BUTTON_STOP_AND_GO_LANE2  "[SG02]"
+#define BUTTON_STOP_AND_GO_LANE3  "[SG03]"
+#define BUTTON_STOP_AND_GO_LANE4  "[SG04]"
+#define BUTTON_STOP_AND_GO_LANE5  "[SG05]"
+#define BUTTON_STOP_AND_GO_LANE6  "[SG06]"
+
+/*****************************************************************************************
    Pin Naming
  *****************************************************************************************/
 // lane to interrup pin mapping
@@ -432,7 +451,7 @@ class Button {
       pressed = !digitalRead(pin);
       if (!reported && pressed) {
         reportButton();
-        // delay(sleep);
+        //delay(sleep);
       }
       reported = pressed;
     }
@@ -441,21 +460,21 @@ class Button {
 /*****************************************************************************************
    Class Button instantiations
  *****************************************************************************************/
-Button raceStart("[BT01]",   47, 10); // pin 5 (RJ11 1)
-Button raceRestart("[BT02]", 45, 10); // pin 6 (RJ11 2)
-Button racePause("[BT03]",   43, 10); // pin 7 (RJ11 3, RJ11 4 = GND)
-//Button raceStartPauseRestart("[BT04]", 43, 100);
-//Button powerOff("[BT05]", 48);
-//Button powerOn("[BT06]", 49);
-//Button endOfRace("[BT07]", 50);
-//Button togglePower("[BT08]", 51);
-//Button toggleYelloFlag("[BT09]", 52);
-//Button stopAndGoLane1("[SG01]", 22);
-//Button stopAndGoLane2("[SG02]", 23);
-//Button stopAndGoLane3("[SG03]", 24);
-//Button stopAndGoLane4("[SG04]", 25);
-//Button stopAndGoLane5("[SG05]", 26);
-//Button stopAndGoLane6("[SG06]", 27);
+Button raceStart(BUTTON_RACE_START,   47, 10); // pin 5 (RJ11 1)
+Button raceRestart(BUTTON_RACE_RESTART, 45, 10); // pin 6 (RJ11 2)
+Button racePause(BUTTON_RACE_PAUSE,   43, 10); // pin 7 (RJ11 3, RJ11 4 = GND)
+//Button raceStartPauseRestart(BUTTON_RACE_NEXT, 43, 100);
+//Button powerOff(BUTTON_POWER_OFF, 48);
+//Button powerOn(BUTTON_POWER_ON, 49);
+//Button endOfRace(BUTTON_END_OF_RACE, 50);
+//Button togglePower(BUTTON_TOGGLE_POWER, 51);
+//Button toggleYelloFlag(BUTTON_TOGGLE_YELLOW_FLAG, 52);
+//Button stopAndGoLane1(BUTTON_STOP_AND_GO_LANE1);
+//Button stopAndGoLane2(BUTTON_STOP_AND_GO_LANE2, 23);
+//Button stopAndGoLane3(BUTTON_STOP_AND_GO_LANE3", 24);
+//Button stopAndGoLane4(BUTTON_STOP_AND_GO_LANE4, 25);
+//Button stopAndGoLane5(BUTTON_STOP_AND_GO_LANE5, 26);
+//Button stopAndGoLane6(BUTTON_STOP_AND_GO_LANE6, 27);
 
 /*****************************************************************************************
    Class FalseStart - HW solution setup false start enable/disable, detection and penalty
@@ -900,19 +919,7 @@ void loop() {
   raceStart.isButtonPressed();
   raceRestart.isButtonPressed();
   racePause.isButtonPressed();
-  //  raceStartPauseRestart.isButtonPressed();
-  //  powerOff.isButtonPressed();
-  //  powerOn.isButtonPressed();
-  //  endOfRace.isButtonPressed();
-  //  togglePower.isButtonPressed();
-  //  toggleYellowFlag.isButtonPressed();
-  //  stopAndGoLane1.isButtonPressed();
-  //  stopAndGoLane2.isButtonPressed();
-  //  stopAndGoLane3.isButtonPressed();
-  //  stopAndGoLane4.isButtonPressed();
-  //  stopAndGoLane5.isButtonPressed();
-  //  stopAndGoLane6.isButtonPressed();
-  delay(3);
+  //delay(3);
   attachAllInterrupts();
 }
 
