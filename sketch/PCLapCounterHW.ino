@@ -18,6 +18,7 @@
 
    Revision History
    __________ ____________________ _______________________________________________________
+   2017-01-25 Gabriel Inäbnit      Light show pattern functionality
    2017-01-22 Gabriel Inäbnit      LEDs and Relay code refactored with classes
    2017-01-21 Gabriel Inäbnit      Lane detection blackout period added
    2017-01-17 Gabriel Inäbnit      Interrupt to Lane mapping also configured with array
@@ -530,7 +531,7 @@ void setup() {
   jiggleRelays();
   delay(1000);
   // light show
-  lightShow(1);
+  lightShow(3);
   delay(1000);
   // initialize globals
   setPowerOn(); // switch all power relays on
@@ -541,7 +542,7 @@ void setup() {
   }
   Serial3.begin(serial3Speed);
   while (!Serial3) {
-    ; // wait..
+    ; // wait...
   }
 }
 
@@ -779,41 +780,43 @@ void setAllRacersOff() {
 
 /*****************************************************************************************
    Light Show
+
+   patter positions:
+   Go, SF5, SF4, SF3, SF2, SF1, R6, R5, R4, R3, R2, R1 (STOP and CAUTION not connected)
+   0 = off
+   1 = on (red)
+   2 = green (only for R1..R6)
+   3 = yellow (only for R1..R6)
  *****************************************************************************************/
+const int len = 8;
+const byte pattern[len][12] = {
+  {0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1},
+  {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+  {1, 0, 0, 0, 0, 0, 2, 2, 2, 2, 2, 2},
+  {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+  {0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1},
+  {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+  {1, 1, 1, 1, 1, 1, 3, 3, 3, 3, 3, 3},
+  {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}
+};
+
 void lightShow(int repetitions) {
   for (int i = 0; i < repetitions; i++) {
-   for (int j = 0; j < 10; j++) {
-    startFinishLED1.on();
-    startFinishLED2.on();
-    startFinishLED3.on();
-    startFinishLED4.on();
-    startFinishLED5.on();
-    ledGO.on();
-    ledSTOP.on();
-    ledPowerAll.on();
-    racerStandLED1.yellow();
-    racerStandLED2.yellow();
-    racerStandLED3.yellow();
-    racerStandLED4.yellow();
-    racerStandLED5.yellow();
-    racerStandLED6.yellow();
-    delay(200);
-    startFinishLED1.off();
-    startFinishLED2.off();
-    startFinishLED3.off();
-    startFinishLED4.off();
-    startFinishLED5.off();
-    ledGO.off();
-    ledSTOP.off();
-    ledPowerAll.off();
-    racerStandLED1.off();
-    racerStandLED2.off();
-    racerStandLED3.off();
-    racerStandLED4.off();
-    racerStandLED5.off();
-    racerStandLED6.off();
-    delay(200);
-   }
+    for (int j = 0; j < len; j++) {
+      pattern[j][0] == 1 ? ledGO.on() : ledGO.off();
+      pattern[j][1] == 1 ? startFinishLED5.on() : startFinishLED5.off();
+      pattern[j][2] == 1 ? startFinishLED4.on() : startFinishLED4.off();
+      pattern[j][3] == 1 ? startFinishLED3.on() : startFinishLED3.off();
+      pattern[j][4] == 1 ? startFinishLED2.on() : startFinishLED2.off();
+      pattern[j][5] == 1 ? startFinishLED1.on() : startFinishLED1.off();
+      pattern[j][6] == 1 ? racerStandLED6.red() : pattern[j][6] == 2 ? racerStandLED6.green() : pattern[j][6] == 3 ? racerStandLED6.yellow() : racerStandLED6.off();
+      pattern[j][7] == 1 ? racerStandLED5.red() : pattern[j][7] == 2 ? racerStandLED5.green() : pattern[j][7] == 3 ? racerStandLED5.yellow() : racerStandLED5.off();
+      pattern[j][8] == 1 ? racerStandLED4.red() : pattern[j][8] == 2 ? racerStandLED4.green() : pattern[j][8] == 3 ? racerStandLED4.yellow() : racerStandLED4.off();
+      pattern[j][9] == 1 ? racerStandLED3.red() : pattern[j][9] == 2 ? racerStandLED3.green() : pattern[j][9] == 3 ? racerStandLED3.yellow() : racerStandLED3.off();
+      pattern[j][10] == 1 ? racerStandLED2.red() : pattern[j][10] == 2 ? racerStandLED2.green() : pattern[j][10] == 3 ? racerStandLED2.yellow() : racerStandLED2.off();
+      pattern[j][11] == 1 ? racerStandLED1.red() : pattern[j][11] == 2 ? racerStandLED1.green() : pattern[j][11] == 3 ? racerStandLED1.yellow() : racerStandLED1.off();
+      delay(200);
+    }
   }
 }
 
