@@ -46,7 +46,7 @@
  *****************************************************************************************/
 const long serialSpeed = 19200; // 19200;
 const long serial3Speed = 115200; // bluetooth
-const unsigned long laneDetectionBlackoutPeriod = 500L;
+const unsigned long laneProtectionTime = 9000L;
 const byte laneToInterrupMapping[] = { 18, 19, 20, 21,  3,  2 };
 const byte laneToRelayMapping[]    = { 12, 28, 11,  9,  7,  5 };
 const byte laneToGreenMapping[]    = { 44, 46, 38, 34, 39, 35 };
@@ -74,10 +74,119 @@ const unsigned long delayMillis[] =
 };
 
 /*****************************************************************************************
-   Symbol Definitions
+   Light Show
+
+   patter positions:
+   0              1   2    3    4    5    6    7   8   9   10  11  12
+   _____________  __  ___  ___  ___  ___  ___  __  __  __  __  __  __
+   Duration [ms], Go, SF5, SF4, SF3, SF2, SF1, R6, R5, R4, R3, R2, R1 (STOP & CAUTION n/c)
+
+   values: 0 = off, 1 = on (red), 2 = green (only for R1..R6), 3 = yellow (only for R1..R6)
  *****************************************************************************************/
-#define ON HIGH
-#define OFF LOW
+const byte patternColumns = 13;
+const byte initPattern[][patternColumns] = {
+  {150, 1, 1, 1, 1, 1, 1, 3, 3, 3, 3, 3, 3},
+  {150, 1, 0, 0, 0, 0, 0, 2, 2, 2, 2, 2, 2},
+  {150, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1},
+  {150, 1, 0, 0, 0, 0, 0, 2, 2, 2, 2, 2, 2},
+  {150, 1, 1, 1, 1, 1, 1, 3, 3, 3, 3, 3, 3},
+  {150, 1, 0, 0, 0, 0, 0, 2, 2, 2, 2, 2, 2},
+  {150, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1},
+  {250, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+  {100, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+  {100, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+  {100, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0},
+  {100, 0, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0},
+  {100, 0, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0},
+  {100, 0, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0},
+  {100, 0, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0},
+  {100, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0},
+  {100, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0},
+  {100, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0},
+  {100, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1},
+  {100, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1},
+  {100, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1},
+  {100, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1},
+  {100, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1},
+  {100, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1},
+  {100, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1},
+  {100, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1},
+  {100, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1},
+  {100, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1},
+  {100, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1},
+  {100, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}
+};
+
+const byte showPattern[][patternColumns] = {
+  {180, 0, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0},
+  {180, 1, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0},
+  {180, 0, 1, 1, 1, 1, 1, 0, 1, 1, 0, 0, 0},
+  {180, 1, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0},
+  {180, 0, 1, 1, 1, 1, 1, 0, 0, 0, 1, 1, 0},
+  {180, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1},
+  {180, 0, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 1},
+  {180, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1},
+  {180, 0, 1, 1, 1, 1, 1, 0, 0, 0, 1, 1, 0},
+  {180, 1, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0},
+  {180, 0, 1, 1, 1, 1, 1, 0, 1, 1, 0, 0, 0},
+  {180, 1, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0},
+  {180, 0, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0},
+  {180, 1, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0},
+  {180, 0, 1, 1, 1, 1, 1, 2, 2, 0, 0, 0, 0},
+  {180, 1, 0, 0, 0, 0, 0, 0, 2, 2, 0, 0, 0},
+  {180, 0, 1, 1, 1, 1, 1, 0, 0, 2, 2, 0, 0},
+  {180, 1, 0, 0, 0, 0, 0, 0, 0, 0, 2, 2, 0},
+  {180, 0, 1, 1, 1, 1, 1, 0, 0, 0, 0, 2, 2},
+  {180, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2},
+  {180, 0, 1, 1, 1, 1, 1, 0, 0, 0, 0, 2, 2},
+  {180, 1, 0, 0, 0, 0, 0, 0, 0, 0, 2, 2, 0},
+  {180, 0, 1, 1, 1, 1, 1, 0, 0, 2, 2, 0, 0},
+  {180, 1, 0, 0, 0, 0, 0, 0, 2, 2, 0, 0, 0},
+  {180, 0, 1, 1, 1, 1, 1, 2, 2, 0, 0, 0, 0},
+  {180, 1, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0},
+  {180, 0, 1, 1, 1, 1, 1, 3, 0, 0, 0, 0, 0},
+  {180, 1, 0, 0, 0, 0, 0, 3, 3, 0, 0, 0, 0},
+  {180, 0, 1, 1, 1, 1, 1, 0, 3, 3, 0, 0, 0},
+  {180, 1, 0, 0, 0, 0, 0, 0, 0, 3, 3, 0, 0},
+  {180, 0, 1, 1, 1, 1, 1, 0, 0, 0, 3, 3, 0},
+  {180, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 3},
+  {180, 0, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 3},
+  {180, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 3},
+  {180, 0, 1, 1, 1, 1, 1, 0, 0, 0, 3, 3, 0},
+  {180, 1, 0, 0, 0, 0, 0, 0, 0, 3, 3, 0, 0},
+  {180, 0, 1, 1, 1, 1, 1, 0, 3, 3, 0, 0, 0},
+  {180, 1, 0, 0, 0, 0, 0, 3, 3, 0, 0, 0, 0},
+  {180, 0, 1, 1, 1, 1, 1, 3, 0, 0, 0, 0, 0},
+  {180, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+  {180, 0, 1, 1, 1, 1, 1, 1, 0, 1, 0, 1, 0},
+  {180, 1, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 1},
+  {180, 0, 1, 1, 1, 1, 1, 1, 0, 1, 0, 1, 0},
+  {180, 1, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 1},
+  {180, 0, 1, 1, 1, 1, 1, 1, 0, 1, 0, 1, 0},
+  {180, 1, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 1},
+  {180, 0, 1, 1, 1, 1, 1, 1, 0, 1, 0, 1, 0},
+  {180, 1, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 1},
+  {180, 0, 1, 1, 1, 1, 1, 3, 0, 3, 0, 3, 0},
+  {180, 1, 0, 0, 0, 0, 0, 0, 3, 0, 3, 0, 3},
+  {180, 0, 1, 1, 1, 1, 1, 3, 0, 3, 0, 3, 0},
+  {180, 1, 0, 0, 0, 0, 0, 0, 2, 0, 2, 0, 2},
+  {180, 0, 1, 1, 1, 1, 1, 2, 0, 2, 0, 2, 0},
+  {180, 1, 0, 0, 0, 0, 0, 0, 2, 0, 2, 0, 2},
+  {180, 0, 1, 1, 1, 1, 1, 2, 0, 2, 0, 2, 0},
+  {180, 1, 0, 0, 0, 0, 0, 0, 2, 0, 2, 0, 2},
+  {255, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1},
+  {255, 1, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1},
+  {255, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1},
+  {180, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+  {180, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1},
+  {180, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+  {180, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1},
+  {180, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+  {180, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1},
+  {180, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+  {180, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1},
+  {255, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}
+};
 
 /*****************************************************************************************
    Arduono Button Press Messages
@@ -225,7 +334,7 @@ class Race {
       previousState = RACE_FINISHED;
       falseStartEnabled = false;
       falseStartDetected = false;
-      startingLights = OFF;
+      startingLights = LOW;
       penaltyBeginMillis = 0L;
       penaltyServedMillis = 0L;
       penaltyTimeMillis = 0L;
@@ -318,11 +427,17 @@ class Race {
       previousState = state;
       state = RACE_FINISHED;
     }
-    void setStartingLights(bool setOn) {
-      startingLights = setOn;
+    void startingLightsOn() {
+      startingLights = HIGH;
     }
-    bool areStartingLights(bool setOn) {
-      return startingLights == setOn;
+    void startingLightsOff() {
+      startingLights = LOW;
+    }
+    bool areStartingLightsOff() {
+      return startingLights == LOW;
+    }
+    bool areStartingLightsOn() {
+      return startingLights == HIGH;
     }
 };
 
@@ -360,7 +475,7 @@ class Lane {
     }
     void lapDetected() { // called by ISR, short and sweet
       now = millis();
-      if ((now - finish) < laneDetectionBlackoutPeriod) {
+      if ((now - finish) < laneProtectionTime) {
         return;
       }
       start = finish;
@@ -402,7 +517,7 @@ class Lane {
         digitalWrite(green, HIGH);
       } else {
         digitalWrite(red, HIGH);
-        digitalWrite(green, HIGH);
+        digitalWrite(green, LOW);
       }
     }
     void powerOff() {
@@ -531,7 +646,10 @@ void setup() {
   jiggleRelays();
   delay(1000);
   // light show
-  lightShow(3);
+//  initShow(1);
+//  lightShow(1);
+  lightShow(1, initPattern);
+  lightShow(1, showPattern);
   delay(1000);
   // initialize globals
   setPowerOn(); // switch all power relays on
@@ -780,64 +898,16 @@ void setAllRacersOff() {
 
 /*****************************************************************************************
    Light Show
-
-   patter positions:
-   Duration [ms], Go, SF5, SF4, SF3, SF2, SF1, R6, R5, R4, R3, R2, R1 (STOP & CAUTION n/c)
-   0 = off
-   1 = on (red)
-   2 = green (only for R1..R6)
-   3 = yellow (only for R1..R6)
  *****************************************************************************************/
-const byte pattern[][13] = {
-  {150, 1, 1, 1, 1, 1, 1, 3, 3, 3, 3, 3, 3},
-  {150, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
-  {250, 1, 0, 0, 0, 0, 0, 2, 2, 2, 2, 2, 2},
-  {100, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
-  {100, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
-  {100, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0},
-  {100, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0},
-  {100, 0, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0},
-  {100, 0, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0},
-  {100, 0, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0},
-  {100, 0, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0},
-  {100, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0},
-  {100, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0},
-  {100, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0},
-  {100, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1},
-
-  {100, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1},
-  {100, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1},
-  {100, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1},
-  {100, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1},
-  {100, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1},
-  {100, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1},
-  {100, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1},
-  {100, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1},
-  {100, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1},
-  {100, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1},
-  {255, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
-
-  { 50, 1, 0, 0, 0, 0, 0, 2, 2, 2, 2, 2, 2},
-  { 50, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
-  { 50, 1, 0, 0, 0, 0, 0, 2, 2, 2, 2, 2, 2},
-  { 50, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
-  { 50, 1, 0, 0, 0, 0, 0, 2, 2, 2, 2, 2, 2},
-  { 50, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
-  { 50, 1, 0, 0, 0, 0, 0, 2, 2, 2, 2, 2, 2},
-  { 50, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
-  { 50, 1, 0, 0, 0, 0, 0, 2, 2, 2, 2, 2, 2},
-  { 50, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
-  { 50, 1, 0, 0, 0, 0, 0, 2, 2, 2, 2, 2, 2},
-  { 50, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
-  { 50, 1, 0, 0, 0, 0, 0, 2, 2, 2, 2, 2, 2},
-  {255, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
-};
-
-#define NUMBER_OF_PATTERNS sizeof(pattern)/sizeof(pattern[0])
-
-void lightShow(int repetitions) {
+void lightShow(int repetitions, const byte pattern[][patternColumns]) {
+  Serial3.print("lightShow(");
+  Serial3.print(repetitions);
+  Serial3.print(", ");
+  Serial3.print(sizeof(pattern));
+  Serial3.println(")");
+  int numberOfPatterns = sizeof(pattern)/sizeof(pattern[0]);
   for (int i = 0; i < repetitions; i++) {
-    for (int j = 0; j < NUMBER_OF_PATTERNS; j++) {
+    for (int j = 0; j < numberOfPatterns; j++) {
       pattern[j][1]  == 1 ? ledGO.on() : ledGO.off();
       pattern[j][2]  == 1 ? startFinishLED5.on() : startFinishLED5.off();
       pattern[j][3]  == 1 ? startFinishLED4.on() : startFinishLED4.off();
@@ -863,6 +933,72 @@ void lightShow(int repetitions) {
       pattern[j][12] == 2 ? racerStandLED1.green() :
       pattern[j][12] == 3 ? racerStandLED1.yellow() : racerStandLED1.off();
       delay(pattern[j][0]);
+    }
+  }
+}
+
+void initShow(int repetitions) {
+  int numberOfPatterns = sizeof(initPattern)/sizeof(initPattern[0]);
+  for (int i = 0; i < repetitions; i++) {
+    for (int j = 0; j < numberOfPatterns; j++) {
+      initPattern[j][1]  == 1 ? ledGO.on() : ledGO.off();
+      initPattern[j][2]  == 1 ? startFinishLED5.on() : startFinishLED5.off();
+      initPattern[j][3]  == 1 ? startFinishLED4.on() : startFinishLED4.off();
+      initPattern[j][4]  == 1 ? startFinishLED3.on() : startFinishLED3.off();
+      initPattern[j][5]  == 1 ? startFinishLED2.on() : startFinishLED2.off();
+      initPattern[j][6]  == 1 ? startFinishLED1.on() : startFinishLED1.off();
+      initPattern[j][7]  == 1 ? racerStandLED6.red() :
+      initPattern[j][7]  == 2 ? racerStandLED6.green() :
+      initPattern[j][7]  == 3 ? racerStandLED6.yellow() : racerStandLED6.off();
+      initPattern[j][8]  == 1 ? racerStandLED5.red() :
+      initPattern[j][8]  == 2 ? racerStandLED5.green() :
+      initPattern[j][8]  == 3 ? racerStandLED5.yellow() : racerStandLED5.off();
+      initPattern[j][9]  == 1 ? racerStandLED4.red() :
+      initPattern[j][9]  == 2 ? racerStandLED4.green() :
+      initPattern[j][9]  == 3 ? racerStandLED4.yellow() : racerStandLED4.off();
+      initPattern[j][10] == 1 ? racerStandLED3.red() :
+      initPattern[j][10] == 2 ? racerStandLED3.green() :
+      initPattern[j][10] == 3 ? racerStandLED3.yellow() : racerStandLED3.off();
+      initPattern[j][11] == 1 ? racerStandLED2.red() :
+      initPattern[j][11] == 2 ? racerStandLED2.green() :
+      initPattern[j][11] == 3 ? racerStandLED2.yellow() : racerStandLED2.off();
+      initPattern[j][12] == 1 ? racerStandLED1.red() :
+      initPattern[j][12] == 2 ? racerStandLED1.green() :
+      initPattern[j][12] == 3 ? racerStandLED1.yellow() : racerStandLED1.off();
+      delay(initPattern[j][0]);
+    }
+  }
+}
+
+void lightShowHC(int repetitions) {
+  int numberOfPatterns = sizeof(showPattern)/sizeof(showPattern[0]);
+  for (int i = 0; i < repetitions; i++) {
+    for (int j = 0; j < numberOfPatterns; j++) {
+      showPattern[j][1]  == 1 ? ledGO.on() : ledGO.off();
+      showPattern[j][2]  == 1 ? startFinishLED5.on() : startFinishLED5.off();
+      showPattern[j][3]  == 1 ? startFinishLED4.on() : startFinishLED4.off();
+      showPattern[j][4]  == 1 ? startFinishLED3.on() : startFinishLED3.off();
+      showPattern[j][5]  == 1 ? startFinishLED2.on() : startFinishLED2.off();
+      showPattern[j][6]  == 1 ? startFinishLED1.on() : startFinishLED1.off();
+      showPattern[j][7]  == 1 ? racerStandLED6.red() :
+      showPattern[j][7]  == 2 ? racerStandLED6.green() :
+      showPattern[j][7]  == 3 ? racerStandLED6.yellow() : racerStandLED6.off();
+      showPattern[j][8]  == 1 ? racerStandLED5.red() :
+      showPattern[j][8]  == 2 ? racerStandLED5.green() :
+      showPattern[j][8]  == 3 ? racerStandLED5.yellow() : racerStandLED5.off();
+      showPattern[j][9]  == 1 ? racerStandLED4.red() :
+      showPattern[j][9]  == 2 ? racerStandLED4.green() :
+      showPattern[j][9]  == 3 ? racerStandLED4.yellow() : racerStandLED4.off();
+      showPattern[j][10] == 1 ? racerStandLED3.red() :
+      showPattern[j][10] == 2 ? racerStandLED3.green() :
+      showPattern[j][10] == 3 ? racerStandLED3.yellow() : racerStandLED3.off();
+      showPattern[j][11] == 1 ? racerStandLED2.red() :
+      showPattern[j][11] == 2 ? racerStandLED2.green() :
+      showPattern[j][11] == 3 ? racerStandLED2.yellow() : racerStandLED2.off();
+      showPattern[j][12] == 1 ? racerStandLED1.red() :
+      showPattern[j][12] == 2 ? racerStandLED1.green() :
+      showPattern[j][12] == 3 ? racerStandLED1.yellow() : racerStandLED1.off();
+      delay(showPattern[j][0]);
     }
   }
 }
@@ -918,6 +1054,20 @@ void lapDetected6() {
  *****************************************************************************************/
 void loop() {
   detachAllInterrupts();
+  while (Serial3.available()) {
+    String command = Serial3.readStringUntil(';');
+    if (command == "show") {
+      lightShow(1, showPattern);
+      setLEDsPowerOn();
+    }
+    if (command == "init") {
+      lightShow(1, initPattern);
+      setLEDsPowerOn();
+    }
+    if (command == "status") {
+      race.debug();
+    }
+  }
   while (Serial.available()) {
     Serial.readStringUntil('[');
     {
@@ -944,10 +1094,10 @@ void loop() {
         race.pause(); // track call immediate, segment end after detection delay
         setAllRacersYellow();
       } else if (output == SL_1_ON) {
-        race.setStartingLights(ON); // set race starting light state with LED1 only
+        race.startingLightsOn(); // set race starting light state with LED1 only
         startFinishLED1.on();
       } else if (output == SL_1_OFF) {
-        race.setStartingLights(OFF); // set race starting light state with LED1 only
+        race.startingLightsOff(); // set race starting light state with LED1 only
         startFinishLED1.off();
       } else if (output == SL_2_ON) {
         startFinishLED2.on();
@@ -987,7 +1137,7 @@ void loop() {
         // flickers when race is continued (track or segment)
         if (race.isPaused() &&
             race.fromState(RACE_STARTED) &&
-            race.areStartingLights(OFF)) { // blink
+            race.areStartingLightsOff()) { // blink
           startFinishLED1.on();
           startFinishLED2.off();
           startFinishLED3.on();
