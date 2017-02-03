@@ -83,41 +83,41 @@ const unsigned long delayMillis[] =
 
    values: 0 = off, 1 = on (red), 2 = green (only for R1..R6), 3 = yellow (only for R1..R6)
  *****************************************************************************************/
-const byte patternColumns = 13;
-const byte initPattern[][patternColumns] = {
-  {150, 1, 1, 1, 1, 1, 1, 3, 3, 3, 3, 3, 3},
-  {150, 1, 0, 0, 0, 0, 0, 2, 2, 2, 2, 2, 2},
-  {150, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1},
-  {150, 1, 0, 0, 0, 0, 0, 2, 2, 2, 2, 2, 2},
-  {150, 1, 1, 1, 1, 1, 1, 3, 3, 3, 3, 3, 3},
-  {150, 1, 0, 0, 0, 0, 0, 2, 2, 2, 2, 2, 2},
-  {150, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1},
-  {250, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
-  {100, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
-  {100, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0},
-  {100, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0},
-  {100, 0, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0},
-  {100, 0, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0},
-  {100, 0, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0},
-  {100, 0, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0},
-  {100, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0},
-  {100, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0},
-  {100, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0},
-  {100, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1},
-  {100, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1},
-  {100, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1},
-  {100, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1},
-  {100, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1},
-  {100, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1},
-  {100, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1},
-  {100, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1},
-  {100, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1},
-  {100, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1},
-  {100, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1},
-  {100, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}
+#define PATTERN_COLUMNS  13
+const byte initPattern[][PATTERN_COLUMNS] = {
+  150, 1, 1, 1, 1, 1, 1, 3, 3, 3, 3, 3, 3,
+  150, 1, 0, 0, 0, 0, 0, 2, 2, 2, 2, 2, 2,
+  150, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+  150, 1, 0, 0, 0, 0, 0, 2, 2, 2, 2, 2, 2,
+  150, 1, 1, 1, 1, 1, 1, 3, 3, 3, 3, 3, 3,
+  150, 1, 0, 0, 0, 0, 0, 2, 2, 2, 2, 2, 2,
+  150, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+  250, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+  100, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+  100, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+  100, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0,
+  100, 0, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0,
+  100, 0, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0,
+  100, 0, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0,
+  100, 0, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0,
+  100, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0,
+  100, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0,
+  100, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0,
+  100, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+  100, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+  100, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+  100, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1,
+  100, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1,
+  100, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1,
+  100, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1,
+  100, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1,
+  100, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1,
+  100, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1,
+  100, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1,
+  100, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
 };
 
-const byte showPattern[][patternColumns] = {
+const byte showPattern[][PATTERN_COLUMNS] = {
   {180, 0, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0},
   {180, 1, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0},
   {180, 0, 1, 1, 1, 1, 1, 0, 1, 1, 0, 0, 0},
@@ -174,9 +174,9 @@ const byte showPattern[][patternColumns] = {
   {180, 1, 0, 0, 0, 0, 0, 0, 2, 0, 2, 0, 2},
   {180, 0, 1, 1, 1, 1, 1, 2, 0, 2, 0, 2, 0},
   {180, 1, 0, 0, 0, 0, 0, 0, 2, 0, 2, 0, 2},
-  {255, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1},
-  {255, 1, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1},
-  {255, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1},
+  {180, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1},
+  {180, 1, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1},
+  {180, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1},
   {180, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
   {180, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1},
   {180, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
@@ -646,10 +646,7 @@ void setup() {
   jiggleRelays();
   delay(1000);
   // light show
-//  initShow(1);
-//  lightShow(1);
-  lightShow(1, initPattern);
-  lightShow(1, showPattern);
+  lightShow(initPattern, sizeof(initPattern));
   delay(1000);
   // initialize globals
   setPowerOn(); // switch all power relays on
@@ -899,107 +896,35 @@ void setAllRacersOff() {
 /*****************************************************************************************
    Light Show
  *****************************************************************************************/
-void lightShow(int repetitions, const byte pattern[][patternColumns]) {
-  Serial3.print("lightShow(");
-  Serial3.print(repetitions);
-  Serial3.print(", ");
-  Serial3.print(sizeof(pattern));
-  Serial3.println(")");
-  int numberOfPatterns = sizeof(pattern)/sizeof(pattern[0]);
-  for (int i = 0; i < repetitions; i++) {
-    for (int j = 0; j < numberOfPatterns; j++) {
-      pattern[j][1]  == 1 ? ledGO.on() : ledGO.off();
-      pattern[j][2]  == 1 ? startFinishLED5.on() : startFinishLED5.off();
-      pattern[j][3]  == 1 ? startFinishLED4.on() : startFinishLED4.off();
-      pattern[j][4]  == 1 ? startFinishLED3.on() : startFinishLED3.off();
-      pattern[j][5]  == 1 ? startFinishLED2.on() : startFinishLED2.off();
-      pattern[j][6]  == 1 ? startFinishLED1.on() : startFinishLED1.off();
-      pattern[j][7]  == 1 ? racerStandLED6.red() :
-      pattern[j][7]  == 2 ? racerStandLED6.green() :
-      pattern[j][7]  == 3 ? racerStandLED6.yellow() : racerStandLED6.off();
-      pattern[j][8]  == 1 ? racerStandLED5.red() :
-      pattern[j][8]  == 2 ? racerStandLED5.green() :
-      pattern[j][8]  == 3 ? racerStandLED5.yellow() : racerStandLED5.off();
-      pattern[j][9]  == 1 ? racerStandLED4.red() :
-      pattern[j][9]  == 2 ? racerStandLED4.green() :
-      pattern[j][9]  == 3 ? racerStandLED4.yellow() : racerStandLED4.off();
-      pattern[j][10] == 1 ? racerStandLED3.red() :
-      pattern[j][10] == 2 ? racerStandLED3.green() :
-      pattern[j][10] == 3 ? racerStandLED3.yellow() : racerStandLED3.off();
-      pattern[j][11] == 1 ? racerStandLED2.red() :
-      pattern[j][11] == 2 ? racerStandLED2.green() :
-      pattern[j][11] == 3 ? racerStandLED2.yellow() : racerStandLED2.off();
-      pattern[j][12] == 1 ? racerStandLED1.red() :
-      pattern[j][12] == 2 ? racerStandLED1.green() :
-      pattern[j][12] == 3 ? racerStandLED1.yellow() : racerStandLED1.off();
-      delay(pattern[j][0]);
-    }
-  }
-}
-
-void initShow(int repetitions) {
-  int numberOfPatterns = sizeof(initPattern)/sizeof(initPattern[0]);
-  for (int i = 0; i < repetitions; i++) {
-    for (int j = 0; j < numberOfPatterns; j++) {
-      initPattern[j][1]  == 1 ? ledGO.on() : ledGO.off();
-      initPattern[j][2]  == 1 ? startFinishLED5.on() : startFinishLED5.off();
-      initPattern[j][3]  == 1 ? startFinishLED4.on() : startFinishLED4.off();
-      initPattern[j][4]  == 1 ? startFinishLED3.on() : startFinishLED3.off();
-      initPattern[j][5]  == 1 ? startFinishLED2.on() : startFinishLED2.off();
-      initPattern[j][6]  == 1 ? startFinishLED1.on() : startFinishLED1.off();
-      initPattern[j][7]  == 1 ? racerStandLED6.red() :
-      initPattern[j][7]  == 2 ? racerStandLED6.green() :
-      initPattern[j][7]  == 3 ? racerStandLED6.yellow() : racerStandLED6.off();
-      initPattern[j][8]  == 1 ? racerStandLED5.red() :
-      initPattern[j][8]  == 2 ? racerStandLED5.green() :
-      initPattern[j][8]  == 3 ? racerStandLED5.yellow() : racerStandLED5.off();
-      initPattern[j][9]  == 1 ? racerStandLED4.red() :
-      initPattern[j][9]  == 2 ? racerStandLED4.green() :
-      initPattern[j][9]  == 3 ? racerStandLED4.yellow() : racerStandLED4.off();
-      initPattern[j][10] == 1 ? racerStandLED3.red() :
-      initPattern[j][10] == 2 ? racerStandLED3.green() :
-      initPattern[j][10] == 3 ? racerStandLED3.yellow() : racerStandLED3.off();
-      initPattern[j][11] == 1 ? racerStandLED2.red() :
-      initPattern[j][11] == 2 ? racerStandLED2.green() :
-      initPattern[j][11] == 3 ? racerStandLED2.yellow() : racerStandLED2.off();
-      initPattern[j][12] == 1 ? racerStandLED1.red() :
-      initPattern[j][12] == 2 ? racerStandLED1.green() :
-      initPattern[j][12] == 3 ? racerStandLED1.yellow() : racerStandLED1.off();
-      delay(initPattern[j][0]);
-    }
-  }
-}
-
-void lightShowHC(int repetitions) {
-  int numberOfPatterns = sizeof(showPattern)/sizeof(showPattern[0]);
-  for (int i = 0; i < repetitions; i++) {
-    for (int j = 0; j < numberOfPatterns; j++) {
-      showPattern[j][1]  == 1 ? ledGO.on() : ledGO.off();
-      showPattern[j][2]  == 1 ? startFinishLED5.on() : startFinishLED5.off();
-      showPattern[j][3]  == 1 ? startFinishLED4.on() : startFinishLED4.off();
-      showPattern[j][4]  == 1 ? startFinishLED3.on() : startFinishLED3.off();
-      showPattern[j][5]  == 1 ? startFinishLED2.on() : startFinishLED2.off();
-      showPattern[j][6]  == 1 ? startFinishLED1.on() : startFinishLED1.off();
-      showPattern[j][7]  == 1 ? racerStandLED6.red() :
-      showPattern[j][7]  == 2 ? racerStandLED6.green() :
-      showPattern[j][7]  == 3 ? racerStandLED6.yellow() : racerStandLED6.off();
-      showPattern[j][8]  == 1 ? racerStandLED5.red() :
-      showPattern[j][8]  == 2 ? racerStandLED5.green() :
-      showPattern[j][8]  == 3 ? racerStandLED5.yellow() : racerStandLED5.off();
-      showPattern[j][9]  == 1 ? racerStandLED4.red() :
-      showPattern[j][9]  == 2 ? racerStandLED4.green() :
-      showPattern[j][9]  == 3 ? racerStandLED4.yellow() : racerStandLED4.off();
-      showPattern[j][10] == 1 ? racerStandLED3.red() :
-      showPattern[j][10] == 2 ? racerStandLED3.green() :
-      showPattern[j][10] == 3 ? racerStandLED3.yellow() : racerStandLED3.off();
-      showPattern[j][11] == 1 ? racerStandLED2.red() :
-      showPattern[j][11] == 2 ? racerStandLED2.green() :
-      showPattern[j][11] == 3 ? racerStandLED2.yellow() : racerStandLED2.off();
-      showPattern[j][12] == 1 ? racerStandLED1.red() :
-      showPattern[j][12] == 2 ? racerStandLED1.green() :
-      showPattern[j][12] == 3 ? racerStandLED1.yellow() : racerStandLED1.off();
-      delay(showPattern[j][0]);
-    }
+void lightShow(const byte pattern[][PATTERN_COLUMNS], int totalSize) {
+  // noob note: we're passing a pointer and the size is always sizeof(pattern) = 2!!!
+  int numberOfPatterns = totalSize / PATTERN_COLUMNS;
+  for (int i = 0; i < numberOfPatterns; i++) {
+    showPattern[i][1]  == 1 ? ledGO.on() : ledGO.off();
+    showPattern[i][2]  == 1 ? startFinishLED5.on() : startFinishLED5.off();
+    showPattern[i][3]  == 1 ? startFinishLED4.on() : startFinishLED4.off();
+    showPattern[i][4]  == 1 ? startFinishLED3.on() : startFinishLED3.off();
+    showPattern[i][5]  == 1 ? startFinishLED2.on() : startFinishLED2.off();
+    showPattern[i][6]  == 1 ? startFinishLED1.on() : startFinishLED1.off();
+    showPattern[i][7]  == 1 ? racerStandLED6.red() :
+    showPattern[i][7]  == 2 ? racerStandLED6.green() :
+    showPattern[i][7]  == 3 ? racerStandLED6.yellow() : racerStandLED6.off();
+    showPattern[i][8]  == 1 ? racerStandLED5.red() :
+    showPattern[i][8]  == 2 ? racerStandLED5.green() :
+    showPattern[i][8]  == 3 ? racerStandLED5.yellow() : racerStandLED5.off();
+    showPattern[i][9]  == 1 ? racerStandLED4.red() :
+    showPattern[i][9]  == 2 ? racerStandLED4.green() :
+    showPattern[i][9]  == 3 ? racerStandLED4.yellow() : racerStandLED4.off();
+    showPattern[i][10] == 1 ? racerStandLED3.red() :
+    showPattern[i][10] == 2 ? racerStandLED3.green() :
+    showPattern[i][10] == 3 ? racerStandLED3.yellow() : racerStandLED3.off();
+    showPattern[i][11] == 1 ? racerStandLED2.red() :
+    showPattern[i][11] == 2 ? racerStandLED2.green() :
+    showPattern[i][11] == 3 ? racerStandLED2.yellow() : racerStandLED2.off();
+    showPattern[i][12] == 1 ? racerStandLED1.red() :
+    showPattern[i][12] == 2 ? racerStandLED1.green() :
+    showPattern[i][12] == 3 ? racerStandLED1.yellow() : racerStandLED1.off();
+    delay(showPattern[i][0]);
   }
 }
 
@@ -1055,13 +980,13 @@ void lapDetected6() {
 void loop() {
   detachAllInterrupts();
   while (Serial3.available()) {
-    String command = Serial3.readStringUntil(';');
+    String command = Serial3.readStringUntil(',');
     if (command == "show") {
-      lightShow(1, showPattern);
+      lightShow(showPattern, sizeof(showPattern));
       setLEDsPowerOn();
     }
     if (command == "init") {
-      lightShow(1, initPattern);
+      lightShow(initPattern, sizeof(initPattern));
       setLEDsPowerOn();
     }
     if (command == "status") {
