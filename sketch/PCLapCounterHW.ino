@@ -13,6 +13,7 @@
    Date  : 2016-10-14
 
    TODO:
+   - Multi heat race proper false start and heat end detection
    - disable track call button when race is not active (or change button behaviour)
    - aborting start/restart is bogus
 
