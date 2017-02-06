@@ -13,12 +13,14 @@
    Date  : 2016-10-14
 
    TODO:
+   - Multi heat race proper false start and heat end detection
    - disable track call button when race is not active (or change button behaviour)
    - aborting start/restart is bogus
-   - void startLights(byte pattern): get them patterns figured out
 
    Revision History
    __________ ____________________ _______________________________________________________
+   2017-01-25 Gabriel Inäbnit      Light show pattern functionality
+   2017-01-22 Gabriel Inäbnit      LEDs and Relay code refactored with classes
    2017-01-21 Gabriel Inäbnit      Lane detection blackout period added
    2017-01-17 Gabriel Inäbnit      Interrupt to Lane mapping also configured with array
    2017-01-16 Gabriel Inäbnit      Relays NC, r/g/y racer's stand lights, lane mappings
@@ -43,9 +45,9 @@
 /*****************************************************************************************
    Global variables
  *****************************************************************************************/
-const long serialSpeed = 57600; // 19200;
+const long serialSpeed = 19200; // 19200;
 const long serial3Speed = 115200; // bluetooth
-const unsigned long laneDetectionBlackoutPeriod = 500L;
+const unsigned long laneProtectionTime = 9000L;
 const byte laneToInterrupMapping[] = { 18, 19, 20, 21,  3,  2 };
 const byte laneToRelayMapping[]    = { 12, 28, 11,  9,  7,  5 };
 const byte laneToGreenMapping[]    = { 44, 46, 38, 34, 39, 35 };
@@ -73,10 +75,119 @@ const unsigned long delayMillis[] =
 };
 
 /*****************************************************************************************
-   Symbol Definitions
+   Light Show
+
+   patter positions:
+   0              1   2    3    4    5    6    7   8   9   10  11  12
+   _____________  __  ___  ___  ___  ___  ___  __  __  __  __  __  __
+   Duration [ms], Go, SF5, SF4, SF3, SF2, SF1, R6, R5, R4, R3, R2, R1 (STOP & CAUTION n/c)
+
+   values: 0 = off, 1 = on (red), 2 = green (only for R1..R6), 3 = yellow (only for R1..R6)
  *****************************************************************************************/
-#define ON HIGH
-#define OFF LOW
+#define PATTERN_COLUMNS  13
+const byte initPattern[][PATTERN_COLUMNS] = {
+  {50, 1, 1, 1, 1, 1, 1, 3, 3, 3, 3, 3, 3},
+  {50, 0, 0, 0, 0, 0, 0, 2, 2, 2, 2, 2, 2},
+  {50, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1},
+  {50, 0, 0, 0, 0, 0, 0, 2, 2, 2, 2, 2, 2},
+  {50, 1, 1, 1, 1, 1, 1, 3, 3, 3, 3, 3, 3},
+  {50, 0, 0, 0, 0, 0, 0, 2, 2, 2, 2, 2, 2},
+  {50, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1},
+  {50, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+  {50, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+  {50, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+  {50, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0},
+  {50, 0, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0},
+  {50, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0},
+  {50, 0, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0},
+  {50, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0},
+  {50, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0},
+  {50, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0},
+  {50, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0},
+  {50, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1},
+  {50, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1},
+  {50, 1, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1},
+  {50, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1},
+  {50, 1, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1},
+  {50, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1},
+  {50, 1, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1},
+  {50, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1},
+  {50, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1},
+  {50, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1},
+  {50, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1},
+  {50, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}
+};
+
+const byte showPattern[][PATTERN_COLUMNS] = {
+  {66, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0},
+  {66, 0, 0, 1, 0, 0, 0, 1, 1, 0, 0, 0, 0},
+  {66, 0, 0, 0, 1, 0, 0, 0, 1, 1, 0, 0, 0},
+  {66, 0, 0, 0, 0, 1, 0, 0, 0, 1, 1, 0, 0},
+  {66, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 1, 0},
+  {66, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1},
+  {66, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1},
+  {66, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 1},
+  {66, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 1, 0},
+  {66, 0, 0, 1, 0, 0, 0, 0, 0, 1, 1, 0, 0},
+  {66, 0, 1, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0},
+  {66, 1, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0},
+  {66, 0, 1, 0, 1, 0, 1, 1, 0, 0, 0, 0, 0},
+  {66, 1, 0, 1, 0, 1, 0, 2, 0, 0, 0, 0, 0},
+  {66, 0, 1, 0, 1, 0, 1, 2, 2, 0, 0, 0, 0},
+  {66, 1, 0, 1, 0, 1, 0, 0, 2, 2, 0, 0, 0},
+  {66, 0, 1, 0, 1, 0, 1, 0, 0, 2, 2, 0, 0},
+  {66, 1, 0, 1, 0, 1, 0, 0, 0, 0, 2, 2, 0},
+  {66, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 2, 2},
+  {66, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 2},
+  {66, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 2, 2},
+  {66, 0, 0, 0, 0, 1, 0, 0, 0, 0, 2, 2, 0},
+  {66, 0, 0, 0, 0, 0, 1, 0, 0, 2, 2, 0, 0},
+  {66, 1, 0, 0, 0, 0, 0, 0, 2, 2, 0, 0, 0},
+  {66, 0, 0, 0, 0, 0, 1, 2, 2, 0, 0, 0, 0},
+  {66, 0, 0, 0, 0, 1, 0, 2, 0, 0, 0, 0, 0},
+  {66, 0, 0, 0, 1, 0, 0, 3, 0, 0, 0, 0, 0},
+  {66, 0, 0, 1, 0, 0, 0, 3, 3, 0, 0, 0, 0},
+  {66, 0, 1, 0, 0, 0, 0, 0, 3, 3, 0, 0, 0},
+  {66, 1, 0, 0, 0, 0, 0, 0, 0, 3, 3, 0, 0},
+  {66, 0, 1, 0, 1, 0, 1, 0, 0, 0, 3, 3, 0},
+  {66, 1, 0, 1, 0, 1, 0, 0, 0, 0, 0, 3, 3},
+  {66, 0, 1, 0, 1, 0, 1, 0, 0, 0, 0, 0, 3},
+  {66, 1, 0, 1, 0, 1, 0, 0, 0, 0, 0, 3, 3},
+  {66, 0, 1, 0, 1, 0, 1, 0, 0, 0, 3, 3, 0},
+  {66, 1, 0, 1, 0, 1, 0, 0, 0, 3, 3, 0, 0},
+  {66, 0, 1, 0, 0, 0, 0, 0, 3, 3, 0, 0, 0},
+  {66, 0, 0, 1, 0, 0, 0, 3, 3, 0, 0, 0, 0},
+  {66, 0, 0, 0, 1, 0, 0, 3, 0, 0, 0, 0, 0},
+  {66, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0},
+  {66, 0, 0, 0, 0, 0, 1, 1, 0, 1, 0, 1, 0},
+  {66, 1, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 1},
+  {66, 0, 0, 0, 0, 0, 1, 1, 0, 1, 0, 1, 0},
+  {66, 0, 0, 0, 0, 1, 0, 0, 1, 0, 1, 0, 1},
+  {66, 0, 0, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0},
+  {66, 0, 0, 1, 0, 0, 0, 0, 1, 0, 1, 0, 1},
+  {66, 0, 1, 0, 0, 0, 0, 1, 0, 1, 0, 1, 0},
+  {66, 1, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 1},
+  {66, 0, 1, 0, 1, 0, 1, 3, 0, 3, 0, 3, 0},
+  {66, 1, 0, 1, 0, 1, 0, 0, 3, 0, 3, 0, 3},
+  {66, 0, 1, 0, 1, 0, 1, 3, 0, 3, 0, 3, 0},
+  {66, 1, 0, 1, 0, 1, 0, 0, 2, 0, 2, 0, 2},
+  {66, 0, 1, 0, 1, 0, 1, 2, 0, 2, 0, 2, 0},
+  {66, 1, 0, 1, 0, 1, 0, 0, 2, 0, 2, 0, 2},
+  {66, 0, 1, 0, 1, 0, 1, 2, 0, 2, 0, 2, 0},
+  {66, 1, 0, 1, 0, 1, 0, 0, 2, 0, 2, 0, 2},
+  {66, 0, 1, 0, 1, 0, 1, 1, 1, 1, 1, 1, 1},
+  {66, 1, 0, 1, 0, 1, 0, 1, 1, 1, 1, 1, 1},
+  {66, 0, 1, 0, 1, 0, 1, 1, 1, 1, 1, 1, 1},
+  {66, 1, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0},
+  {66, 0, 1, 0, 1, 0, 1, 1, 1, 1, 1, 1, 1},
+  {66, 1, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0},
+  {66, 0, 1, 0, 1, 0, 1, 1, 1, 1, 1, 1, 1},
+  {66, 1, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0},
+  {66, 0, 1, 0, 1, 0, 1, 1, 1, 1, 1, 1, 1},
+  {66, 1, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0},
+  {66, 0, 1, 0, 1, 0, 1, 1, 1, 1, 1, 1, 1},
+  {255, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}
+};
 
 /*****************************************************************************************
    Arduono Button Press Messages
@@ -224,7 +335,7 @@ class Race {
       previousState = RACE_FINISHED;
       falseStartEnabled = false;
       falseStartDetected = false;
-      startingLights = OFF;
+      startingLights = LOW;
       penaltyBeginMillis = 0L;
       penaltyServedMillis = 0L;
       penaltyTimeMillis = 0L;
@@ -317,11 +428,17 @@ class Race {
       previousState = state;
       state = RACE_FINISHED;
     }
-    void setStartingLights(bool setOn) {
-      startingLights = setOn;
+    void startingLightsOn() {
+      startingLights = HIGH;
     }
-    bool areStartingLights(bool setOn) {
-      return startingLights == setOn;
+    void startingLightsOff() {
+      startingLights = LOW;
+    }
+    bool areStartingLightsOff() {
+      return startingLights == LOW;
+    }
+    bool areStartingLightsOn() {
+      return startingLights == HIGH;
     }
 };
 
@@ -359,7 +476,7 @@ class Lane {
     }
     void lapDetected() { // called by ISR, short and sweet
       now = millis();
-      if ((now - finish) < laneDetectionBlackoutPeriod) {
+      if ((now - finish) < laneProtectionTime) {
         return;
       }
       start = finish;
@@ -401,7 +518,7 @@ class Lane {
         digitalWrite(green, HIGH);
       } else {
         digitalWrite(red, HIGH);
-        digitalWrite(green, HIGH);
+        digitalWrite(green, LOW);
       }
     }
     void powerOff() {
@@ -451,7 +568,7 @@ class Button {
       pressed = !digitalRead(pin);
       if (!reported && pressed) {
         reportButton();
-        //delay(sleep);
+        delay(sleep);
       }
       reported = pressed;
     }
@@ -460,10 +577,10 @@ class Button {
 /*****************************************************************************************
    Class Button instantiations
  *****************************************************************************************/
-Button raceStart(BUTTON_RACE_START,   47, 10); // pin 5 (RJ11 1)
-Button raceRestart(BUTTON_RACE_RESTART, 45, 10); // pin 6 (RJ11 2)
-Button racePause(BUTTON_RACE_PAUSE,   43, 10); // pin 7 (RJ11 3, RJ11 4 = GND)
-//Button raceStartPauseRestart(BUTTON_RACE_NEXT, 43, 100);
+Button raceStart(BUTTON_RACE_START,            47, 10); // pin 5 (RJ11 1)
+Button raceRestart(BUTTON_RACE_RESTART,        45, 10); // pin 6 (RJ11 2)
+Button racePause(BUTTON_RACE_PAUSE,            43, 10); // pin 7 (RJ11 3, RJ11 4 = GND)
+Button raceStartPauseRestart(BUTTON_RACE_NEXT, 33, 100); // pin 1 (RJ11 n/c)
 //Button powerOff(BUTTON_POWER_OFF, 48);
 //Button powerOn(BUTTON_POWER_ON, 49);
 //Button endOfRace(BUTTON_END_OF_RACE, 50);
@@ -514,6 +631,15 @@ FalseStart falseStart;
    initializations and configurations of I/O pins
  *****************************************************************************************/
 void setup() {
+  // initialize serial communication
+  Serial.begin(serialSpeed);
+  while (!Serial) {
+    ; // wait for serial port to connect. Needed for native USB
+  }
+  Serial3.begin(serial3Speed);
+  while (!Serial3) {
+    ; // wait...
+  }
   // interrup pins
   pinMode(LANE_1, INPUT_PULLUP);
   pinMode(LANE_2, INPUT_PULLUP);
@@ -526,77 +652,13 @@ void setup() {
   pinMode(FSbit_1, INPUT_PULLUP);
   pinMode(FSbit_2, INPUT_PULLUP);
   pinMode(FSbit_3, INPUT_PULLUP);
-  // output pins
-  pinMode(LED_1, OUTPUT);
-  pinMode(LED_2, OUTPUT);
-  pinMode(LED_3, OUTPUT);
-  pinMode(LED_4, OUTPUT);
-  pinMode(LED_5, OUTPUT);
-  pinMode(LED_GO, OUTPUT);
-  pinMode(LED_STOP, OUTPUT);
-  //  pinMode(LED_CAUTION, OUTPUT);
-  pinMode(PWR_ALL, OUTPUT);
-  pinMode(PWR_1, OUTPUT);
-  pinMode(PWR_2, OUTPUT);
-  pinMode(PWR_3, OUTPUT);
-  pinMode(PWR_4, OUTPUT);
-  pinMode(PWR_5, OUTPUT);
-  pinMode(PWR_6, OUTPUT);
-  // plugin box
-  pinMode(LED_DSR1, OUTPUT);
-  pinMode(LED_DSR2, OUTPUT);
-  pinMode(LED_DSR3, OUTPUT);
-  pinMode(LED_DSR4, OUTPUT);
-  pinMode(LED_DSR5, OUTPUT);
-  pinMode(LED_DSR6, OUTPUT);
-  pinMode(LED_DSG1, OUTPUT);
-  pinMode(LED_DSG2, OUTPUT);
-  pinMode(LED_DSG3, OUTPUT);
-  pinMode(LED_DSG4, OUTPUT);
-  pinMode(LED_DSG5, OUTPUT);
-  pinMode(LED_DSG6, OUTPUT);
-  // turn all LEDs off
-  digitalWrite(LED_1, LOW);
-  digitalWrite(LED_2, LOW);
-  digitalWrite(LED_3, LOW);
-  digitalWrite(LED_4, LOW);
-  digitalWrite(LED_5, LOW);
-  digitalWrite(LED_GO, LOW);
-  digitalWrite(LED_STOP, LOW);
-  //  digitalWrite(LED_CAUTION, LOW);
-  digitalWrite(LED_DSR1, LOW);
-  digitalWrite(LED_DSR2, LOW);
-  digitalWrite(LED_DSR3, LOW);
-  digitalWrite(LED_DSR4, LOW);
-  digitalWrite(LED_DSR5, LOW);
-  digitalWrite(LED_DSR6, LOW);
-  digitalWrite(LED_DSG1, LOW);
-  digitalWrite(LED_DSG2, LOW);
-  digitalWrite(LED_DSG3, LOW);
-  digitalWrite(LED_DSG4, LOW);
-  digitalWrite(LED_DSG5, LOW);
-  digitalWrite(LED_DSG6, LOW);
-  digitalWrite(PWR_ALL, LOW);
-  digitalWrite(PWR_1, HIGH);
-  digitalWrite(PWR_2, HIGH);
-  digitalWrite(PWR_3, HIGH);
-  digitalWrite(PWR_4, HIGH);
-  digitalWrite(PWR_5, HIGH);
-  digitalWrite(PWR_6, HIGH);
   // shake the dust off the relays
   jiggleRelays();
-  delay(1000);
-  // initialize globals
-  setPower(ON); // switch all power relays on
-  // all defined, ready to read/write from/to serial port
-  Serial.begin(serialSpeed);
-  while (!Serial) {
-    ; // wait for serial port to connect. Needed for native USB
-  }
-  Serial3.begin(serial3Speed);
-  while (!Serial3) {
-    ; // wait..
-  }
+  delay(333);
+  // light show
+  lightShow(initPattern, sizeof(initPattern));
+  delay(333);
+  setPowerOn(); // switch all power relays on
 }
 
 /*****************************************************************************************
@@ -605,140 +667,266 @@ void setup() {
 #define CLICK 20
 
 void jiggleRelays() {
-  setPower(ON);
+  allRelaysOn();
   delay(CLICK);
-  setPower(OFF);
+  allRelaysOff();
   delay(222);
-  setPower(ON);
+  allRelaysOn();
   delay(CLICK);
-  setPower(OFF);
+  allRelaysOff();
   delay(111);
-  setPower(ON);
+  allRelaysOn();
   delay(CLICK);
-  setPower(OFF);
+  allRelaysOff();
   delay(111);
-  setPower(ON);
+  allRelaysOn();
   delay(CLICK);
-  setPower(OFF);
+  allRelaysOff();
   delay(222);
-  setPower(ON);
+  allRelaysOn();
   delay(CLICK);
-  setPower(OFF);
+  allRelaysOff();
   delay(444);
-  setPower(ON);
+  allRelaysOn();
   delay(CLICK);
-  setPower(OFF);
+  allRelaysOff();
   delay(222);
-  setPower(ON);
+  allRelaysOn();
   delay(CLICK);
-  setPower(OFF);
+  allRelaysOff();
 }
+
+/*****************************************************************************************
+   Class LED
+ *****************************************************************************************/
+class LED {
+  protected:
+    byte led;
+  public:
+    LED (byte setLed) {
+      led = setLed;
+      pinMode(led, OUTPUT);
+    }
+    void on() {
+      digitalWrite(led, true);
+    }
+    void off() {
+      digitalWrite(led, false);
+    }
+};
+
+LED startFinishLED1(LED_1);
+LED startFinishLED2(LED_2);
+LED startFinishLED3(LED_3);
+LED startFinishLED4(LED_4);
+LED startFinishLED5(LED_5);
+LED ledGO(LED_GO);
+LED ledSTOP(LED_STOP);
+LED ledPowerAll(PWR_ALL);
+
+/*****************************************************************************************
+   Class RacerStandLED
+ *****************************************************************************************/
+class RacerStandLED {
+  protected:
+    byte greenPin;
+    byte redPin;
+    bool isRed;
+    bool isGreen;
+    void apply() {
+      digitalWrite(greenPin, isGreen);
+      digitalWrite(redPin, isRed);
+    }
+  public:
+    RacerStandLED(byte lane) {
+      greenPin = laneToGreenMapping[lane - 1];
+      redPin = laneToRedMapping[lane - 1];
+      pinMode(greenPin, OUTPUT);
+      pinMode(redPin, OUTPUT);
+    }
+    void off() {
+      isRed = false;
+      isGreen = false;
+      apply();
+    }
+    void red() {
+      isRed = true;
+      isGreen = false;
+      apply();
+    }
+    void green() {
+      isRed = false;
+      isGreen = true;
+      apply();
+    }
+    void yellow() {
+      isRed = true;
+      isGreen = true;
+      apply();
+    }
+};
+
+RacerStandLED racerStandLED1(1);
+RacerStandLED racerStandLED2(2);
+RacerStandLED racerStandLED3(3);
+RacerStandLED racerStandLED4(4);
+RacerStandLED racerStandLED5(5);
+RacerStandLED racerStandLED6(6);
+
+/*****************************************************************************************
+   Class Relay
+ *****************************************************************************************/
+class Relay {
+  protected:
+    byte pin;
+  public:
+    Relay(byte lane) {
+      pin = laneToRelayMapping[lane - 1];
+      pinMode(pin, OUTPUT);
+    }
+    void on() {
+      digitalWrite(pin, HIGH);
+    }
+    void off() {
+      digitalWrite(pin, LOW);
+    }
+};
+
+Relay relay1(1);
+Relay relay2(2);
+Relay relay3(3);
+Relay relay4(4);
+Relay relay5(5);
+Relay relay6(6);
 
 /*****************************************************************************************
    engage/disengage relays
  *****************************************************************************************/
-void setPower(bool setOn) {
-  digitalWrite(PWR_ALL, setOn);
-  digitalWrite(PWR_1, setOn);
-  digitalWrite(PWR_2, setOn);
-  digitalWrite(PWR_3, setOn);
-  digitalWrite(PWR_4, setOn);
-  digitalWrite(PWR_5, setOn);
-  digitalWrite(PWR_6, setOn);
-  relayLEDsOn(setOn);
+void allRelaysOn() {
+  relay1.on();
+  relay2.on();
+  relay3.on();
+  relay4.on();
+  relay5.on();
+  relay6.on();
+}
+
+void allRelaysOff() {
+  relay1.off();
+  relay2.off();
+  relay3.off();
+  relay4.off();
+  relay5.off();
+  relay6.off();
+}
+
+void setPowerOn() {
+  ledPowerAll.on();
+  allRelaysOn();
+  setLEDsPowerOn();
+}
+
+void setPowerOff() {
+  ledPowerAll.off();
+  allRelaysOff();
+  setLEDsPowerOff();
 }
 
 /*****************************************************************************************
    corresponding LEDs pattern for engage/disengage relays
  *****************************************************************************************/
-void relayLEDsOn(bool setOn) {
-  digitalWrite(LED_1, !setOn);
-  digitalWrite(LED_2, !setOn);
-  digitalWrite(LED_3, !setOn);
-  digitalWrite(LED_4, !setOn);
-  digitalWrite(LED_5, !setOn);
-  digitalWrite(LED_GO, setOn);
-  digitalWrite(LED_STOP, !setOn);
-  relayLEDsGreen(setOn);
-  relayLEDsRed(!setOn);
+void setLEDsPowerOn() {
+  startFinishLED1.off();
+  startFinishLED2.off();
+  startFinishLED3.off();
+  startFinishLED4.off();
+  startFinishLED5.off();
+  ledGO.on();
+  ledSTOP.off();
+  setAllRacersGreen();
 }
 
-void relayLEDsGreen(bool setOn) {
-  digitalWrite(LED_DSG1, setOn);
-  digitalWrite(LED_DSG2, setOn);
-  digitalWrite(LED_DSG3, setOn);
-  digitalWrite(LED_DSG4, setOn);
-  digitalWrite(LED_DSG5, setOn);
-  digitalWrite(LED_DSG6, setOn);
+void setLEDsPowerOff() {
+  startFinishLED1.on();
+  startFinishLED2.on();
+  startFinishLED3.on();
+  startFinishLED4.on();
+  startFinishLED5.on();
+  ledGO.off();
+  ledSTOP.on();
+  setAllRacersRed();
 }
 
-void relayLEDsRed(bool setOn) {
-  digitalWrite(LED_DSR1, setOn);
-  digitalWrite(LED_DSR2, setOn);
-  digitalWrite(LED_DSR3, setOn);
-  digitalWrite(LED_DSR4, setOn);
-  digitalWrite(LED_DSR5, setOn);
-  digitalWrite(LED_DSR6, setOn);
+void setAllRacersGreen() {
+  racerStandLED1.green();
+  racerStandLED2.green();
+  racerStandLED3.green();
+  racerStandLED4.green();
+  racerStandLED5.green();
+  racerStandLED6.green();
 }
 
-/*****************************************************************************************
-   yellow (red & gree) on/off
- *****************************************************************************************/
-void yellowLEDs(bool setOn) {
-  relayLEDsGreen(setOn);
-  relayLEDsRed(setOn);
+void setAllRacersRed() {
+  racerStandLED1.red();
+  racerStandLED2.red();
+  racerStandLED3.red();
+  racerStandLED4.red();
+  racerStandLED5.red();
+  racerStandLED6.red();
 }
 
-/*****************************************************************************************
-   Start/Finish, Go and Stop LEDs
- *****************************************************************************************/
-void setLED1(bool setOn) {
-  digitalWrite(LED_1, setOn);
+void setAllRacersYellow() {
+  racerStandLED1.yellow();
+  racerStandLED2.yellow();
+  racerStandLED3.yellow();
+  racerStandLED4.yellow();
+  racerStandLED5.yellow();
+  racerStandLED6.yellow();
 }
 
-void setLED2(bool setOn) {
-  digitalWrite(LED_2, setOn);
-}
-
-void setLED3(bool setOn) {
-  digitalWrite(LED_3, setOn);
-}
-
-void setLED4(bool setOn) {
-  digitalWrite(LED_4, setOn);
-}
-
-void setLED5(bool setOn) {
-  digitalWrite(LED_5, setOn);
-}
-
-void setGO(bool setOn) {
-  digitalWrite(LED_GO, setOn);
-}
-
-void setSTOP(bool setOn) {
-  digitalWrite(LED_STOP, setOn);
-}
-
-void setALL(bool setOn) {
-  digitalWrite(PWR_ALL, setOn);
+void setAllRacersOff() {
+  racerStandLED1.off();
+  racerStandLED2.off();
+  racerStandLED3.off();
+  racerStandLED4.off();
+  racerStandLED5.off();
+  racerStandLED6.off();
 }
 
 /*****************************************************************************************
-   start light pattern switcher
-#define OOOOI  1
-#define OOOIO  2
-#define OOIOO  4
-#define OIOOO  8
-#define IOOOO 16
-void startLights(byte pattern) {
-  digitalWrite(LED_1, pattern & OOOOI);
-  digitalWrite(LED_2, pattern & OOOIO);
-  digitalWrite(LED_3, pattern & OOIOO);
-  digitalWrite(LED_4, pattern & OIOOO);
-  digitalWrite(LED_5, pattern & IOOOO);
-}
+   Light Show
  *****************************************************************************************/
+void lightShow(const byte pattern[][PATTERN_COLUMNS], int totalSize) {
+  // noob note: we're passing a pointer and the size is always sizeof(pattern) = 2!!!
+  int numberOfPatterns = totalSize / PATTERN_COLUMNS;
+  for (int i = 0; i < numberOfPatterns; i++) {
+    pattern[i][1]  == 1 ? ledGO.on() : ledGO.off();
+    pattern[i][2]  == 1 ? startFinishLED5.on() : startFinishLED5.off();
+    pattern[i][3]  == 1 ? startFinishLED4.on() : startFinishLED4.off();
+    pattern[i][4]  == 1 ? startFinishLED3.on() : startFinishLED3.off();
+    pattern[i][5]  == 1 ? startFinishLED2.on() : startFinishLED2.off();
+    pattern[i][6]  == 1 ? startFinishLED1.on() : startFinishLED1.off();
+    pattern[i][7]  == 1 ? racerStandLED6.red() :
+    pattern[i][7]  == 2 ? racerStandLED6.green() :
+    pattern[i][7]  == 3 ? racerStandLED6.yellow() : racerStandLED6.off();
+    pattern[i][8]  == 1 ? racerStandLED5.red() :
+    pattern[i][8]  == 2 ? racerStandLED5.green() :
+    pattern[i][8]  == 3 ? racerStandLED5.yellow() : racerStandLED5.off();
+    pattern[i][9]  == 1 ? racerStandLED4.red() :
+    pattern[i][9]  == 2 ? racerStandLED4.green() :
+    pattern[i][9]  == 3 ? racerStandLED4.yellow() : racerStandLED4.off();
+    pattern[i][10] == 1 ? racerStandLED3.red() :
+    pattern[i][10] == 2 ? racerStandLED3.green() :
+    pattern[i][10] == 3 ? racerStandLED3.yellow() : racerStandLED3.off();
+    pattern[i][11] == 1 ? racerStandLED2.red() :
+    pattern[i][11] == 2 ? racerStandLED2.green() :
+    pattern[i][11] == 3 ? racerStandLED2.yellow() : racerStandLED2.off();
+    pattern[i][12] == 1 ? racerStandLED1.red() :
+    pattern[i][12] == 2 ? racerStandLED1.green() :
+    pattern[i][12] == 3 ? racerStandLED1.yellow() : racerStandLED1.off();
+    delay(pattern[i][0]);
+  }
+}
 
 /*****************************************************************************************
    enable interrupts
@@ -791,6 +979,20 @@ void lapDetected6() {
  *****************************************************************************************/
 void loop() {
   detachAllInterrupts();
+  while (Serial3.available()) {
+    String command = Serial3.readStringUntil(',');
+    if (command == "show") {
+      lightShow(showPattern, sizeof(showPattern));
+      setLEDsPowerOn();
+    }
+    if (command == "init") {
+      lightShow(initPattern, sizeof(initPattern));
+      setLEDsPowerOn();
+    }
+    if (command == "status") {
+      race.debug();
+    }
+  }
   while (Serial.available()) {
     Serial.readStringUntil('[');
     {
@@ -800,7 +1002,7 @@ void loop() {
       // String raceClockTime = output.substring(4, 8); // HH:MM:SS
       if (raceClockState == "RC0") { // Race Clock - Race Setup
         if (race.fromState(RACE_FINISHED)) {
-          setPower(OFF);
+          setPowerOff();
         }
         race.init();
         falseStart.init();
@@ -808,76 +1010,76 @@ void loop() {
         //   race.start(); // misses the first second
       } else if (raceClockState == "RC2") { // Race Clock - Race Finished
         race.finish();
-        setLED1(ON);
-        setLED2(ON);
-        setLED3(ON);
-        setLED4(ON);
-        setLED5(ON);
+        startFinishLED1.on();
+        startFinishLED2.on();
+        startFinishLED3.on();
+        startFinishLED4.on();
+        startFinishLED5.on();
       } else if (raceClockState == "RC3" && !race.isPaused()) { // Race Clock - Race Paused
         race.pause(); // track call immediate, segment end after detection delay
-        yellowLEDs(ON);
+        setAllRacersYellow();
       } else if (output == SL_1_ON) {
-        race.setStartingLights(ON); // set race starting light state with LED1 only
-        setLED1(ON);
+        race.startingLightsOn(); // set race starting light state with LED1 only
+        startFinishLED1.on();
       } else if (output == SL_1_OFF) {
-        race.setStartingLights(OFF); // set race starting light state with LED1 only
-        setLED1(OFF);
+        race.startingLightsOff(); // set race starting light state with LED1 only
+        startFinishLED1.off();
       } else if (output == SL_2_ON) {
-        setLED2(ON);
+        startFinishLED2.on();
       } else if (output == SL_2_OFF) {
-        setLED2(OFF);
+        startFinishLED2.off();
       } else if (output == SL_3_ON) {
-        setLED3(ON);
+        startFinishLED3.on();
       } else if (output == SL_3_OFF) {
-        setLED3(OFF);
+        startFinishLED3.off();
       } else if (output == SL_4_ON) {
-        setLED4(ON);
+        startFinishLED4.on();
       } else if (output == SL_4_OFF) {
-        setLED4(OFF);
+        startFinishLED4.off();
       } else if (output == SL_5_ON) {
-        setLED5(ON);
+        startFinishLED5.on();
       } else if (output == SL_5_OFF) {
-        setLED5(OFF);
+        startFinishLED5.off();
       } else if (output == GO_ON) { // race start
         race.start();
-        setGO(ON);
-        relayLEDsRed(OFF);
+        ledGO.on();
+        setAllRacersGreen();
       } else if (output == GO_OFF) { // track call, segment or heat end
         race.pause();
-        setGO(OFF);
+        ledGO.off();
       } else if (output == STOP_ON) {
-        setSTOP(ON);
+        ledSTOP.on();
         if (race.isPaused() && race.fromState(RACE_STARTED)) { // blink
-          setLED1(OFF);
-          setLED2(ON);
-          setLED3(OFF);
-          setLED4(ON);
-          setLED5(OFF);
-          yellowLEDs(ON);
+          startFinishLED1.off();
+          startFinishLED2.on();
+          startFinishLED3.off();
+          startFinishLED4.on();
+          startFinishLED5.off();
+          setAllRacersYellow();
         }
       } else if (output == STOP_OFF) {
-        setSTOP(OFF);
+        ledSTOP.off();
         // flickers when race is continued (track or segment)
         if (race.isPaused() &&
             race.fromState(RACE_STARTED) &&
-            race.areStartingLights(OFF)) { // blink
-          setLED1(ON);
-          setLED2(OFF);
-          setLED3(ON);
-          setLED4(OFF);
-          setLED5(ON);
-          yellowLEDs(OFF);
+            race.areStartingLightsOff()) { // blink
+          startFinishLED1.on();
+          startFinishLED2.off();
+          startFinishLED3.on();
+          startFinishLED4.off();
+          startFinishLED5.on();
+          setAllRacersOff();
         }
       } else if (output == PWR_ON) {
-        setALL(ON);
-        yellowLEDs(ON);
+        ledPowerAll.on();
+        setAllRacersYellow();
         if (race.isFinished()) {
-          setPower(ON);
+          setPowerOn();
         }
       } else if (output == PWR_OFF) {
-        setALL(OFF);
+        ledPowerAll.off();
         if (race.isFinished()) {
-          setPower(OFF);
+          setPowerOff();
         }
       } else if (output == PWR_1_ON) {
         lane1.powerOn();
@@ -919,7 +1121,7 @@ void loop() {
   raceStart.isButtonPressed();
   raceRestart.isButtonPressed();
   racePause.isButtonPressed();
-  //delay(3);
+  delay(3);
   attachAllInterrupts();
 }
 
