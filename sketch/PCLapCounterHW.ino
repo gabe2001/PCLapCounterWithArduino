@@ -597,16 +597,6 @@ Button raceStartPauseRestart(BUTTON_RACE_NEXT, 33, 100); // pin 1 (RJ11 n/c)
    Class FalseStart - HW solution setup false start enable/disable, detection and penalty
  *****************************************************************************************/
 class FalseStart {
-  protected:
-    void reset() {
-      // reset false start flags
-      lane1.reset();
-      lane2.reset();
-      lane3.reset();
-      lane4.reset();
-      lane5.reset();
-      lane6.reset();
-    }
   public:
     FalseStart() {
       // empty constructor
@@ -618,7 +608,6 @@ class FalseStart {
                   !digitalRead(FSbit_1) << 1 |
                   !digitalRead(FSbit_0);
       race.initFalseStart(mode);
-      reset();
     }
 };
 
@@ -979,6 +968,7 @@ void lapDetected6() {
  *****************************************************************************************/
 void loop() {
   detachAllInterrupts();
+  delay(10);
   while (Serial3.available()) {
     String command = Serial3.readStringUntil(',');
     if (command == "show") {
@@ -1006,6 +996,13 @@ void loop() {
         }
         race.init();
         falseStart.init();
+        // reset false start flags
+        lane1.reset();
+        lane2.reset();
+        lane3.reset();
+        lane4.reset();
+        lane5.reset();
+        lane6.reset();
         // } else if (raceClockState == "RC1" && !race.isStarted) { // Race Clock - Race Started
         //   race.start(); // misses the first second
       } else if (raceClockState == "RC2") { // Race Clock - Race Finished
@@ -1121,7 +1118,7 @@ void loop() {
   raceStart.isButtonPressed();
   raceRestart.isButtonPressed();
   racePause.isButtonPressed();
-  delay(3);
+  delay(10);
   attachAllInterrupts();
 }
 
