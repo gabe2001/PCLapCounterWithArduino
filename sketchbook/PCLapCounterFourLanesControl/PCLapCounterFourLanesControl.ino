@@ -103,7 +103,7 @@ const unsigned long delayMillis[] =
 #define LED_STOP 9
 
 // PWR_x: x = lane
-#define PWR_ALL 18
+#define PWR_ALL A2
 
 // False Start bits
 #define FSbit_0 17
@@ -112,11 +112,11 @@ const unsigned long delayMillis[] =
 #define FSbit_3 14
 
 // Buttons
-//#define RACE_START 41
-//#define RACE_RESTART 42
-//#define RACE_PAUSE 43
+#define RACE_START A3
+#define RACE_RESTART A4
+#define RACE_PAUSE A5
 //#define POWER_TOGGLE 46
-#define RACE_START_PAUSE_RESTART 19
+//#define RACE_START_PAUSE_RESTART 19
 
 /*****************************************************************************************
    PC Lap Counter Messages
