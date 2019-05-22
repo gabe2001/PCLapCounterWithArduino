@@ -103,7 +103,7 @@ const unsigned long delayMillis[] =
 #define LED_STOP 9
 
 // PWR_x: x = lane
-#define PWR_ALL A2
+#define LED_PWR_ALL A2
 
 // False Start bits
 #define FSbit_0 17
@@ -348,10 +348,10 @@ class Button {
 /*****************************************************************************************
    Class Button instantiations
  *****************************************************************************************/
-//Button raceStart(BUTTON_RACE_START,     RACE_START,   10);
-//Button raceRestart(BUTTON_RACE_RESTART, RACE_RESTART, 10);
-//Button racePause(BUTTON_RACE_PAUSE,     RACE_PAUSE,   10);
-Button raceNext(BUTTON_RACE_NEXT,       RACE_START_PAUSE_RESTART, 10);
+Button raceStart(BUTTON_RACE_START,     RACE_START,   10);
+Button raceRestart(BUTTON_RACE_RESTART, RACE_RESTART, 10);
+Button racePause(BUTTON_RACE_PAUSE,     RACE_PAUSE,   10);
+//Button raceNext(BUTTON_RACE_NEXT,       RACE_START_PAUSE_RESTART, 10);
 
 /*****************************************************************************************
    Class FalseStart - HW solution setup false start enable/disable, detection and penalty
@@ -467,7 +467,7 @@ LED startFinishLED5(LED_5);
 LED ledGO(LED_GO);
 LED ledSTOP(LED_STOP);
 LED ledCaution(LED_CAUTION);
-LED ledPowerAll(PWR_ALL);
+LED ledPowerAll(LED_PWR_ALL);
 
 
 /*****************************************************************************************
@@ -672,9 +672,9 @@ void loop() {
     }
   }
   /** any buttons pressed */
-  //raceStart.isButtonPressed();
-  //raceRestart.isButtonPressed();
-  //racePause.isButtonPressed();
-  raceNext.isButtonPressed();
+  raceStart.isButtonPressed();
+  raceRestart.isButtonPressed();
+  racePause.isButtonPressed();
+  //raceNext.isButtonPressed();
   delay(3);
 }
