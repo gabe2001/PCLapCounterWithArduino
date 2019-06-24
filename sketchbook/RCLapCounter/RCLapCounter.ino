@@ -3,7 +3,7 @@
 
    I/O Sketch - V1.0.0.10
 
- `  The Race Coordinator Arduino sketch is covered by the Creative Commons - Attribution-NonCommercial-ShareAlike 4.0 International license.
+   The Race Coordinator Arduino sketch is covered by the Creative Commons - Attribution-NonCommercial-ShareAlike 4.0 International license.
    Copyright 2014 by Dave Aufderheide and Kevin Gee.  All rights reserved.
    If you find this sketch and corresponding wiring suggestions useful please
    consider making a donation to the RC charity
@@ -914,4 +914,3 @@ void softwareReboot()
   asm volatile("jmp 0");
 #endif
 }
-
